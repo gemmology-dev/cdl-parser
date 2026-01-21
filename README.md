@@ -253,17 +253,19 @@ cdl-parser is designed to work with the Gemmology Project ecosystem:
 
 ```python
 from cdl_parser import parse_cdl
-from crystal_geometry import cdl_to_geometry  # Future package
-from crystal_renderer import generate_svg     # Future package
+from crystal_geometry import cdl_to_geometry
+from crystal_renderer import generate_cdl_svg, generate_geometry_svg
 
-# Parse CDL
-desc = parse_cdl("cubic[m3m]:{111}@1.0 + {100}@1.3")
+# Option 1: Direct CDL string to SVG
+cdl = "cubic[m3m]:{111}@1.0 + {100}@1.3"
+generate_cdl_svg(cdl, "crystal.svg")
 
-# Convert to 3D geometry
+# Option 2: Parse, then generate geometry for custom processing
+desc = parse_cdl(cdl)
 geometry = cdl_to_geometry(desc)
 
-# Render to SVG
-svg = generate_svg(geometry)
+# Render geometry directly
+generate_geometry_svg(geometry.vertices, geometry.faces, "geometry.svg")
 ```
 
 ## Development
