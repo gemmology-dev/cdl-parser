@@ -30,3 +30,6 @@ htmlcov/
 # Build artifacts
 *.db
 *.sqlite
+
+# macOS
+.DS_Store
