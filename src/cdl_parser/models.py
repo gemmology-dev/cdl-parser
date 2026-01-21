@@ -5,7 +5,7 @@ Data classes representing Crystal Description Language components.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 @dataclass
@@ -26,10 +26,11 @@ class MillerIndex:
         >>> MillerIndex(1, 0, 0)  # Cube face
         >>> MillerIndex(1, 0, 1, i=-1)  # Hexagonal {10-11}
     """
+
     h: int
     k: int
-    l: int
-    i: Optional[int] = None  # For Miller-Bravais (hexagonal/trigonal)
+    l: int  # noqa: E741 - standard crystallographic notation
+    i: int | None = None  # For Miller-Bravais (hexagonal/trigonal)
 
     def __post_init__(self):
         # Validate Miller-Bravais constraint: i = -(h+k)
@@ -40,13 +41,13 @@ class MillerIndex:
                     f"Invalid Miller-Bravais index: i should be {expected_i}, got {self.i}"
                 )
 
-    def as_tuple(self) -> Tuple[int, ...]:
+    def as_tuple(self) -> tuple[int, ...]:
         """Return as tuple (3 or 4 elements)."""
         if self.i is not None:
             return (self.h, self.k, self.i, self.l)
         return (self.h, self.k, self.l)
 
-    def as_3index(self) -> Tuple[int, int, int]:
+    def as_3index(self) -> tuple[int, int, int]:
         """Return as 3-index tuple (for calculations)."""
         return (self.h, self.k, self.l)
 
@@ -77,9 +78,10 @@ class CrystalForm:
         >>> CrystalForm(MillerIndex(1, 1, 1), scale=1.0)
         >>> CrystalForm(MillerIndex(1, 0, 0), scale=1.3, name='cube')
     """
+
     miller: MillerIndex
     scale: float = 1.0
-    name: Optional[str] = None  # Original name if using named form
+    name: str | None = None  # Original name if using named form
 
     def __str__(self) -> str:
         s = str(self.miller)
@@ -104,8 +106,9 @@ class Modification:
         >>> Modification('elongate', {'axis': 'c', 'ratio': 1.5})
         >>> Modification('truncate', {'form': MillerIndex(1,0,0), 'depth': 0.3})
     """
+
     type: str  # elongate, truncate, taper, bevel
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
 
     def __str__(self) -> str:
         param_str = ", ".join(f"{k}:{v}" for k, v in self.params.items())
@@ -130,8 +133,9 @@ class TwinSpec:
         >>> TwinSpec(axis=(1, 1, 1), angle=180)
         >>> TwinSpec(law='trilling', count=3)
     """
-    law: Optional[str] = None  # Named law (spinel, brazil, etc.)
-    axis: Optional[Tuple[float, float, float]] = None  # Custom axis
+
+    law: str | None = None  # Named law (spinel, brazil, etc.)
+    axis: tuple[float, float, float] | None = None  # Custom axis
     angle: float = 180.0
     twin_type: str = "contact"  # contact, penetration, cyclic
     count: int = 2  # Number of individuals
@@ -165,20 +169,18 @@ class CrystalDescription:
         >>> len(desc.forms)
         2
     """
+
     system: str
     point_group: str
-    forms: List[CrystalForm] = field(default_factory=list)
-    modifications: List[Modification] = field(default_factory=list)
-    twin: Optional[TwinSpec] = None
+    forms: list[CrystalForm] = field(default_factory=list)
+    modifications: list[Modification] = field(default_factory=list)
+    twin: TwinSpec | None = None
 
     def __str__(self) -> str:
         parts = [f"{self.system}[{self.point_group}]"]
 
         # Forms
-        form_strs = [
-            str(f.miller) + (f"@{f.scale}" if f.scale != 1.0 else "")
-            for f in self.forms
-        ]
+        form_strs = [str(f.miller) + (f"@{f.scale}" if f.scale != 1.0 else "") for f in self.forms]
         parts.append(":" + " + ".join(form_strs))
 
         # Modifications
@@ -192,28 +194,23 @@ class CrystalDescription:
 
         return "".join(parts)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
         return {
-            'system': self.system,
-            'point_group': self.point_group,
-            'forms': [
-                {
-                    'miller': f.miller.as_tuple(),
-                    'scale': f.scale,
-                    'name': f.name
-                }
+            "system": self.system,
+            "point_group": self.point_group,
+            "forms": [
+                {"miller": f.miller.as_tuple(), "scale": f.scale, "name": f.name}
                 for f in self.forms
             ],
-            'modifications': [
-                {'type': m.type, 'params': m.params}
-                for m in self.modifications
-            ],
-            'twin': {
-                'law': self.twin.law,
-                'axis': self.twin.axis,
-                'angle': self.twin.angle,
-                'twin_type': self.twin.twin_type,
-                'count': self.twin.count
-            } if self.twin else None
+            "modifications": [{"type": m.type, "params": m.params} for m in self.modifications],
+            "twin": {
+                "law": self.twin.law,
+                "axis": self.twin.axis,
+                "angle": self.twin.angle,
+                "twin_type": self.twin.twin_type,
+                "count": self.twin.count,
+            }
+            if self.twin
+            else None,
         }

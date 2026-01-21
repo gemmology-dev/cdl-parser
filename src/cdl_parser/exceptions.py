@@ -7,6 +7,7 @@ Custom exception classes for Crystal Description Language parsing errors.
 
 class CDLError(Exception):
     """Base exception for CDL-related errors."""
+
     pass
 
 

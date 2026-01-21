@@ -8,21 +8,16 @@ import pytest
 
 from cdl_parser import (
     CRYSTAL_SYSTEMS,
-    DEFAULT_POINT_GROUPS,
     NAMED_FORMS,
     POINT_GROUPS,
-    TWIN_LAWS,
     CrystalDescription,
     CrystalForm,
     MillerIndex,
-    Modification,
     ParseError,
-    TwinSpec,
     ValidationError,
     parse_cdl,
     validate_cdl,
 )
-
 
 # =============================================================================
 # Test Data
@@ -50,6 +45,7 @@ INVALID_CDL_CASES = [
 # =============================================================================
 # Miller Index Tests
 # =============================================================================
+
 
 class TestMillerIndex:
     """Test Miller index data class."""
@@ -112,6 +108,7 @@ class TestMillerIndex:
 # Crystal Form Tests
 # =============================================================================
 
+
 class TestCrystalForm:
     """Test CrystalForm data class."""
 
@@ -132,8 +129,8 @@ class TestCrystalForm:
     def test_create_with_name(self):
         """Test creating form with name."""
         mi = MillerIndex(1, 1, 1)
-        form = CrystalForm(miller=mi, name='octahedron')
-        assert form.name == 'octahedron'
+        form = CrystalForm(miller=mi, name="octahedron")
+        assert form.name == "octahedron"
 
     def test_str_basic(self):
         """Test string representation."""
@@ -151,6 +148,7 @@ class TestCrystalForm:
 # =============================================================================
 # Parser Tests
 # =============================================================================
+
 
 class TestParseSimple:
     """Test basic CDL parsing."""
@@ -321,6 +319,7 @@ class TestParseModifications:
 # Validation Tests
 # =============================================================================
 
+
 class TestValidation:
     """Test CDL validation."""
 
@@ -347,6 +346,7 @@ class TestValidation:
 # Serialization Tests
 # =============================================================================
 
+
 class TestSerialization:
     """Test serialization and string representation."""
 
@@ -372,6 +372,7 @@ class TestSerialization:
 # =============================================================================
 # Edge Cases
 # =============================================================================
+
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
@@ -407,6 +408,7 @@ class TestEdgeCases:
 # Exception Tests
 # =============================================================================
 
+
 class TestExceptions:
     """Test exception handling."""
 
@@ -414,7 +416,9 @@ class TestExceptions:
         """Test ParseError contains useful message."""
         with pytest.raises(ParseError) as exc_info:
             parse_cdl("invalid{{{")
-        assert "position" in str(exc_info.value).lower() or "unexpected" in str(exc_info.value).lower()
+        assert (
+            "position" in str(exc_info.value).lower() or "unexpected" in str(exc_info.value).lower()
+        )
 
     def test_validation_error_fields(self):
         """Test ValidationError with field info."""
@@ -427,48 +431,56 @@ class TestExceptions:
 # CLI Tests
 # =============================================================================
 
+
 class TestCLI:
     """Test CLI functionality."""
 
     def test_cli_parse(self):
         """Test CLI parse command."""
         from cdl_parser.cli import main
+
         result = main(["parse", "cubic[m3m]:{111}"])
         assert result == 0
 
     def test_cli_validate_valid(self):
         """Test CLI validate with valid CDL."""
         from cdl_parser.cli import main
+
         result = main(["validate", "cubic[m3m]:{111}"])
         assert result == 0
 
     def test_cli_validate_invalid(self):
         """Test CLI validate with invalid CDL."""
         from cdl_parser.cli import main
+
         result = main(["validate", "invalid{{{"])
         assert result == 1
 
     def test_cli_list_systems(self):
         """Test CLI list-systems."""
         from cdl_parser.cli import main
+
         result = main(["--list-systems"])
         assert result == 0
 
     def test_cli_list_point_groups(self):
         """Test CLI list-point-groups."""
         from cdl_parser.cli import main
+
         result = main(["--list-point-groups"])
         assert result == 0
 
     def test_cli_list_forms(self):
         """Test CLI list-forms."""
         from cdl_parser.cli import main
+
         result = main(["--list-forms"])
         assert result == 0
 
     def test_cli_list_twins(self):
         """Test CLI list-twins."""
         from cdl_parser.cli import main
+
         result = main(["--list-twins"])
         assert result == 0
 
@@ -476,6 +488,7 @@ class TestCLI:
 # =============================================================================
 # Integration Tests
 # =============================================================================
+
 
 class TestIntegration:
     """Integration tests for real-world usage."""

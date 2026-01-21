@@ -27,20 +27,6 @@ __author__ = "Fabian Schuh"
 __email__ = "fabian@gemmology.dev"
 
 # Core parsing functions
-from .parser import parse_cdl, validate_cdl
-
-# Data classes
-from .models import (
-    CrystalDescription,
-    CrystalForm,
-    MillerIndex,
-    Modification,
-    TwinSpec,
-)
-
-# Exceptions
-from .exceptions import CDLError, ParseError, ValidationError
-
 # Constants
 from .constants import (
     ALL_POINT_GROUPS,
@@ -53,8 +39,20 @@ from .constants import (
     TWIN_TYPES,
 )
 
+# Exceptions
+from .exceptions import CDLError, ParseError, ValidationError
+
+# Data classes
+from .models import (
+    CrystalDescription,
+    CrystalForm,
+    MillerIndex,
+    Modification,
+    TwinSpec,
+)
+
 # Lexer/Parser internals (for advanced use)
-from .parser import Lexer, Parser, Token, TokenType
+from .parser import Lexer, Parser, Token, TokenType, parse_cdl, validate_cdl
 
 __all__ = [
     # Version

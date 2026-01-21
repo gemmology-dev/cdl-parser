@@ -6,7 +6,7 @@ Lexer and parser for Crystal Description Language strings.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 from .constants import (
     ALL_POINT_GROUPS,
@@ -25,44 +25,47 @@ from .models import (
     TwinSpec,
 )
 
-
 # =============================================================================
 # Token Types
 # =============================================================================
 
+
 class TokenType(Enum):
     """Token types for CDL lexer."""
-    SYSTEM = 'SYSTEM'
-    POINT_GROUP = 'POINT_GROUP'
-    LBRACKET = 'LBRACKET'
-    RBRACKET = 'RBRACKET'
-    COLON = 'COLON'
-    LBRACE = 'LBRACE'
-    RBRACE = 'RBRACE'
-    PLUS = 'PLUS'
-    PIPE = 'PIPE'
-    AT = 'AT'
-    COMMA = 'COMMA'
-    LPAREN = 'LPAREN'
-    RPAREN = 'RPAREN'
-    INTEGER = 'INTEGER'
-    FLOAT = 'FLOAT'
-    IDENTIFIER = 'IDENTIFIER'
-    EOF = 'EOF'
+
+    SYSTEM = "SYSTEM"
+    POINT_GROUP = "POINT_GROUP"
+    LBRACKET = "LBRACKET"
+    RBRACKET = "RBRACKET"
+    COLON = "COLON"
+    LBRACE = "LBRACE"
+    RBRACE = "RBRACE"
+    PLUS = "PLUS"
+    PIPE = "PIPE"
+    AT = "AT"
+    COMMA = "COMMA"
+    LPAREN = "LPAREN"
+    RPAREN = "RPAREN"
+    INTEGER = "INTEGER"
+    FLOAT = "FLOAT"
+    IDENTIFIER = "IDENTIFIER"
+    EOF = "EOF"
 
 
 @dataclass
 class Token:
     """A lexer token."""
+
     type: TokenType
     value: Any
     position: int
-    raw: Optional[str] = None  # Original text (for preserving leading zeros)
+    raw: str | None = None  # Original text (for preserving leading zeros)
 
 
 # =============================================================================
 # Lexer
 # =============================================================================
+
 
 class Lexer:
     """Tokenizer for CDL strings.
@@ -85,20 +88,20 @@ class Lexer:
         start = self.pos
         has_decimal = False
 
-        if self.text[self.pos] == '-':
+        if self.text[self.pos] == "-":
             self.pos += 1
 
         while self.pos < self.length:
             ch = self.text[self.pos]
             if ch.isdigit():
                 self.pos += 1
-            elif ch == '.' and not has_decimal:
+            elif ch == "." and not has_decimal:
                 has_decimal = True
                 self.pos += 1
             else:
                 break
 
-        value_str = self.text[start:self.pos]
+        value_str = self.text[start : self.pos]
         if has_decimal:
             return Token(TokenType.FLOAT, float(value_str), start, raw=value_str)
         # Store raw string to preserve leading zeros (important for Miller indices)
@@ -113,12 +116,12 @@ class Lexer:
 
         while self.pos < self.length:
             ch = self.text[self.pos]
-            if ch.isalnum() or ch in '_/-':
+            if ch.isalnum() or ch in "_/-":
                 self.pos += 1
             else:
                 break
 
-        value = self.text[start:self.pos]
+        value = self.text[start : self.pos]
         value_lower = value.lower()
 
         # Check if it's a crystal system
@@ -143,17 +146,17 @@ class Lexer:
 
         # Single character tokens
         single_char_tokens = {
-            '[': TokenType.LBRACKET,
-            ']': TokenType.RBRACKET,
-            '{': TokenType.LBRACE,
-            '}': TokenType.RBRACE,
-            ':': TokenType.COLON,
-            '+': TokenType.PLUS,
-            '|': TokenType.PIPE,
-            '@': TokenType.AT,
-            ',': TokenType.COMMA,
-            '(': TokenType.LPAREN,
-            ')': TokenType.RPAREN,
+            "[": TokenType.LBRACKET,
+            "]": TokenType.RBRACKET,
+            "{": TokenType.LBRACE,
+            "}": TokenType.RBRACE,
+            ":": TokenType.COLON,
+            "+": TokenType.PLUS,
+            "|": TokenType.PIPE,
+            "@": TokenType.AT,
+            ",": TokenType.COMMA,
+            "(": TokenType.LPAREN,
+            ")": TokenType.RPAREN,
         }
 
         if ch in single_char_tokens:
@@ -164,42 +167,42 @@ class Lexer:
         if ch.isdigit():
             temp_pos = self.pos
             while temp_pos < self.length and (
-                self.text[temp_pos].isalnum() or self.text[temp_pos] in '/-'
+                self.text[temp_pos].isalnum() or self.text[temp_pos] in "/-"
             ):
                 temp_pos += 1
-            potential = self.text[self.pos:temp_pos]
+            potential = self.text[self.pos : temp_pos]
 
             if potential in ALL_POINT_GROUPS:
                 # Check what follows - if decimal point, this is a number
-                if temp_pos < self.length and self.text[temp_pos] == '.':
+                if temp_pos < self.length and self.text[temp_pos] == ".":
                     return self._read_number()
                 self.pos = temp_pos
                 return Token(TokenType.POINT_GROUP, potential, start)
             return self._read_number()
 
         # Numbers with leading negative (could be point group like -43m)
-        if ch == '-' and self.pos + 1 < self.length and self.text[self.pos + 1].isdigit():
+        if ch == "-" and self.pos + 1 < self.length and self.text[self.pos + 1].isdigit():
             temp_pos = self.pos
             while temp_pos < self.length and (
-                self.text[temp_pos].isalnum() or self.text[temp_pos] in '/-'
+                self.text[temp_pos].isalnum() or self.text[temp_pos] in "/-"
             ):
                 temp_pos += 1
-            potential = self.text[self.pos:temp_pos]
+            potential = self.text[self.pos : temp_pos]
 
             if potential in ALL_POINT_GROUPS:
-                if temp_pos < self.length and self.text[temp_pos] == '.':
+                if temp_pos < self.length and self.text[temp_pos] == ".":
                     return self._read_number()
                 self.pos = temp_pos
                 return Token(TokenType.POINT_GROUP, potential, start)
             return self._read_number()
 
         # Identifiers
-        if ch.isalpha() or ch == '_':
+        if ch.isalpha() or ch == "_":
             return self._read_identifier_or_point_group()
 
         raise ParseError(f"Unexpected character '{ch}'", position=self.pos)
 
-    def tokenize(self) -> List[Token]:
+    def tokenize(self) -> list[Token]:
         """Tokenize entire string."""
         tokens = []
         while True:
@@ -214,13 +217,14 @@ class Lexer:
 # Parser
 # =============================================================================
 
+
 class Parser:
     """Parser for CDL strings.
 
     Parses a sequence of tokens into a CrystalDescription.
     """
 
-    def __init__(self, tokens: List[Token]):
+    def __init__(self, tokens: list[Token]):
         self.tokens = tokens
         self.pos = 0
 
@@ -243,8 +247,7 @@ class Parser:
         token = self._current()
         if token.type != token_type:
             raise ParseError(
-                f"Expected {token_type.value}, got {token.type.value}",
-                position=token.position
+                f"Expected {token_type.value}, got {token.type.value}", position=token.position
             )
         return self._advance()
 
@@ -267,7 +270,7 @@ class Parser:
                 raise ValidationError(
                     f"Point group '{point_group}' not valid for {system} system",
                     field="point_group",
-                    value=point_group
+                    value=point_group,
                 )
 
         # Expect colon
@@ -283,17 +286,16 @@ class Parser:
             # Check if it's modifications or twin
             if self._current().type == TokenType.IDENTIFIER:
                 ident = self._current().value.lower()
-                if ident == 'twin':
+                if ident == "twin":
                     pass  # It's a twin, not modifications
-                elif ident in {'elongate', 'truncate', 'taper', 'bevel'}:
+                elif ident in {"elongate", "truncate", "taper", "bevel"}:
                     modifications = self._parse_modifications()
 
         # Parse optional twin
         twin = None
         if self._current().type == TokenType.PIPE:
             self._advance()  # consume |
-        if (self._current().type == TokenType.IDENTIFIER and
-                self._current().value.lower() == 'twin'):
+        if self._current().type == TokenType.IDENTIFIER and self._current().value.lower() == "twin":
             twin = self._parse_twin()
 
         return CrystalDescription(
@@ -301,10 +303,10 @@ class Parser:
             point_group=point_group,
             forms=forms,
             modifications=modifications,
-            twin=twin
+            twin=twin,
         )
 
-    def _parse_form_list(self) -> List[CrystalForm]:
+    def _parse_form_list(self) -> list[CrystalForm]:
         """Parse form_list = form ('+' form)*"""
         forms = [self._parse_form()]
 
@@ -324,10 +326,7 @@ class Parser:
             name_token = self._advance()
             name = name_token.value.lower()
             if name not in NAMED_FORMS:
-                raise ParseError(
-                    f"Unknown form name: {name}",
-                    position=name_token.position
-                )
+                raise ParseError(f"Unknown form name: {name}", position=name_token.position)
             hkl = NAMED_FORMS[name]
             miller = MillerIndex(hkl[0], hkl[1], hkl[2])
         elif self._current().type == TokenType.LBRACE:
@@ -335,8 +334,7 @@ class Parser:
             miller = self._parse_miller_index()
         else:
             raise ParseError(
-                f"Expected form name or Miller index",
-                position=self._current().position
+                "Expected form name or Miller index", position=self._current().position
             )
 
         # Optional scale
@@ -349,10 +347,7 @@ class Parser:
             elif scale_token.type == TokenType.INTEGER:
                 scale = float(self._advance().value)
             else:
-                raise ParseError(
-                    f"Expected scale value after @",
-                    position=scale_token.position
-                )
+                raise ParseError("Expected scale value after @", position=scale_token.position)
 
         return CrystalForm(miller=miller, scale=scale, name=name)
 
@@ -375,7 +370,7 @@ class Parser:
             raw = token.raw or str(value)
 
             # Use raw string to preserve leading zeros and handle condensed notation
-            if raw.startswith('-'):
+            if raw.startswith("-"):
                 sign = -1
                 raw_digits = raw[1:]
             else:
@@ -402,10 +397,10 @@ class Parser:
             raise ParseError(
                 f"Miller index must have 3 or 4 components, got {len(indices)}: {indices}. "
                 f"Use separated format: {{1 1 1}} or {{1, 1, 1}}",
-                position=self._current().position
+                position=self._current().position,
             )
 
-    def _parse_modifications(self) -> List[Modification]:
+    def _parse_modifications(self) -> list[Modification]:
         """Parse mod_list = modification (',' modification)*"""
         mods = [self._parse_modification()]
 
@@ -420,24 +415,21 @@ class Parser:
         mod_token = self._current()
         mod_type = self._expect(TokenType.IDENTIFIER).value.lower()
 
-        if mod_type not in {'elongate', 'truncate', 'taper', 'bevel'}:
-            raise ParseError(
-                f"Unknown modification type: {mod_type}",
-                position=mod_token.position
-            )
+        if mod_type not in {"elongate", "truncate", "taper", "bevel"}:
+            raise ParseError(f"Unknown modification type: {mod_type}", position=mod_token.position)
 
         self._expect(TokenType.LPAREN)
 
         params = {}
 
         # Parse parameters based on type
-        if mod_type == 'elongate':
+        if mod_type == "elongate":
             # elongate(axis:ratio)
             axis = self._expect(TokenType.IDENTIFIER).value.lower()
             self._expect(TokenType.COLON)
             ratio = self._parse_number()
-            params = {'axis': axis, 'ratio': ratio}
-        elif mod_type == 'truncate':
+            params = {"axis": axis, "ratio": ratio}
+        elif mod_type == "truncate":
             # truncate(form:depth)
             if self._current().type == TokenType.LBRACE:
                 form = self._parse_miller_index()
@@ -445,19 +437,19 @@ class Parser:
                 form = self._expect(TokenType.IDENTIFIER).value
             self._expect(TokenType.COLON)
             depth = self._parse_number()
-            params = {'form': form, 'depth': depth}
-        elif mod_type == 'taper':
+            params = {"form": form, "depth": depth}
+        elif mod_type == "taper":
             # taper(direction:factor)
             direction = self._expect(TokenType.IDENTIFIER).value
             self._expect(TokenType.COLON)
             factor = self._parse_number()
-            params = {'direction': direction, 'factor': factor}
-        elif mod_type == 'bevel':
+            params = {"direction": direction, "factor": factor}
+        elif mod_type == "bevel":
             # bevel(edges:width)
             edges = self._expect(TokenType.IDENTIFIER).value
             self._expect(TokenType.COLON)
             width = self._parse_number()
-            params = {'edges': edges, 'width': width}
+            params = {"edges": edges, "width": width}
 
         self._expect(TokenType.RPAREN)
 
@@ -484,10 +476,7 @@ class Parser:
                     self._advance()
                     count = self._parse_int_or_point_group()
             else:
-                raise ParseError(
-                    f"Unknown twin law: {ident}",
-                    position=self._current().position
-                )
+                raise ParseError(f"Unknown twin law: {ident}", position=self._current().position)
         elif self._current().type == TokenType.LBRACKET:
             # Custom axis [x,y,z]
             self._advance()
@@ -530,10 +519,7 @@ class Parser:
                 return result
             except ValueError:
                 pass
-        raise ParseError(
-            f"Expected number",
-            position=token.position
-        )
+        raise ParseError("Expected number", position=token.position)
 
     def _parse_int_or_point_group(self) -> int:
         """Parse an integer, also accepting point groups that are just numbers."""
@@ -542,23 +528,20 @@ class Parser:
             return self._advance().value
         elif token.type == TokenType.POINT_GROUP:
             value = token.value
-            if value.lstrip('-').isdigit():
+            if value.lstrip("-").isdigit():
                 self._advance()
                 return int(value)
             raise ParseError(
-                f"Expected integer but got point group '{value}'",
-                position=token.position
+                f"Expected integer but got point group '{value}'", position=token.position
             )
         else:
-            raise ParseError(
-                f"Expected integer",
-                position=token.position
-            )
+            raise ParseError("Expected integer", position=token.position)
 
 
 # =============================================================================
 # Public API
 # =============================================================================
+
 
 def parse_cdl(text: str) -> CrystalDescription:
     """Parse a CDL string to CrystalDescription.
@@ -594,7 +577,7 @@ def parse_cdl(text: str) -> CrystalDescription:
     return parser.parse()
 
 
-def validate_cdl(text: str) -> Tuple[bool, Optional[str]]:
+def validate_cdl(text: str) -> tuple[bool, str | None]:
     """Validate a CDL string.
 
     Args:

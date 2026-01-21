@@ -6,7 +6,6 @@ Command-line interface for the Crystal Description Language parser.
 
 import argparse
 import sys
-from typing import Optional
 
 from . import __version__
 from .constants import (
@@ -22,8 +21,8 @@ from .parser import parse_cdl, validate_cdl
 def create_parser() -> argparse.ArgumentParser:
     """Create the argument parser."""
     parser = argparse.ArgumentParser(
-        prog='cdl',
-        description='Crystal Description Language (CDL) Parser',
+        prog="cdl",
+        description="Crystal Description Language (CDL) Parser",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -32,62 +31,33 @@ Examples:
   %(prog)s validate "hexagonal[6/mmm]:{10-10} + {0001}"
   %(prog)s --list-point-groups
   %(prog)s --list-systems
-        """
+        """,
     )
 
-    parser.add_argument(
-        '--version',
-        action='version',
-        version=f'%(prog)s {__version__}'
-    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
     parser.add_argument(
-        'command',
-        nargs='?',
-        choices=['parse', 'validate'],
-        help='Command to execute'
+        "command", nargs="?", choices=["parse", "validate"], help="Command to execute"
     )
 
-    parser.add_argument(
-        'cdl',
-        nargs='?',
-        help='CDL string to parse/validate'
-    )
+    parser.add_argument("cdl", nargs="?", help="CDL string to parse/validate")
 
     parser.add_argument(
-        '--list-point-groups',
-        action='store_true',
-        help='List all point groups by system'
+        "--list-point-groups", action="store_true", help="List all point groups by system"
     )
 
-    parser.add_argument(
-        '--list-systems',
-        action='store_true',
-        help='List all crystal systems'
-    )
+    parser.add_argument("--list-systems", action="store_true", help="List all crystal systems")
 
-    parser.add_argument(
-        '--list-forms',
-        action='store_true',
-        help='List all named forms'
-    )
+    parser.add_argument("--list-forms", action="store_true", help="List all named forms")
 
-    parser.add_argument(
-        '--list-twins',
-        action='store_true',
-        help='List all twin laws'
-    )
+    parser.add_argument("--list-twins", action="store_true", help="List all twin laws")
 
-    parser.add_argument(
-        '--json',
-        action='store_true',
-        help='Output parsed result as JSON'
-    )
+    parser.add_argument("--json", action="store_true", help="Output parsed result as JSON")
 
     return parser
 
 
-def main(args: Optional[list] = None) -> int:
+def main(args: list | None = None) -> int:
     """Main entry point for the CLI."""
     parser = create_parser()
     parsed_args = parser.parse_args(args)
@@ -127,12 +97,13 @@ def main(args: Optional[list] = None) -> int:
         parser.print_help()
         return 1
 
-    if parsed_args.command == 'parse':
+    if parsed_args.command == "parse":
         try:
             desc = parse_cdl(parsed_args.cdl)
 
             if parsed_args.json:
                 import json
+
                 print(json.dumps(desc.to_dict(), indent=2))
             else:
                 print("Parsed successfully!")
@@ -153,7 +124,7 @@ def main(args: Optional[list] = None) -> int:
             print(f"Parse error: {e}", file=sys.stderr)
             return 1
 
-    elif parsed_args.command == 'validate':
+    elif parsed_args.command == "validate":
         is_valid, error = validate_cdl(parsed_args.cdl)
         if is_valid:
             print("Valid CDL string")
@@ -165,5 +136,5 @@ def main(args: Optional[list] = None) -> int:
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
