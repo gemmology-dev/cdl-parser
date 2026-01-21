@@ -57,7 +57,7 @@ Examples:
     return parser
 
 
-def main(args: list | None = None) -> int:
+def main(args: list[str] | None = None) -> int:
     """Main entry point for the CLI."""
     parser = create_parser()
     parsed_args = parser.parse_args(args)

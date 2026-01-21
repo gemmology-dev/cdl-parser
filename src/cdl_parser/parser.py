@@ -78,7 +78,7 @@ class Lexer:
         self.pos = 0
         self.length = len(text)
 
-    def _skip_whitespace(self):
+    def _skip_whitespace(self) -> None:
         """Skip whitespace characters."""
         while self.pos < self.length and self.text[self.pos].isspace():
             self.pos += 1
@@ -509,7 +509,7 @@ class Parser:
         if token.type == TokenType.INTEGER:
             return float(self._advance().value)
         elif token.type == TokenType.FLOAT:
-            return self._advance().value
+            return float(self._advance().value)
         elif token.type == TokenType.POINT_GROUP:
             # Handle numeric point groups like '1', '3', '-1'
             value = token.value
@@ -525,7 +525,7 @@ class Parser:
         """Parse an integer, also accepting point groups that are just numbers."""
         token = self._current()
         if token.type == TokenType.INTEGER:
-            return self._advance().value
+            return int(self._advance().value)
         elif token.type == TokenType.POINT_GROUP:
             value = token.value
             if value.lstrip("-").isdigit():

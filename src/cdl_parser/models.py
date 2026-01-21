@@ -32,7 +32,7 @@ class MillerIndex:
     l: int  # noqa: E741 - standard crystallographic notation
     i: int | None = None  # For Miller-Bravais (hexagonal/trigonal)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Validate Miller-Bravais constraint: i = -(h+k)
         if self.i is not None:
             expected_i = -(self.h + self.k)
