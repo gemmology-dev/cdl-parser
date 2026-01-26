@@ -1,6 +1,6 @@
 [project]
 name = "gemmology-cdl-parser"
-version = "1.0.0"
+version = "1.0.1"
 description = "Crystal Description Language (CDL) parser for crystallographic visualization"
 readme = "README.md"
 license = { text = "MIT" }
