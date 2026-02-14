@@ -22,7 +22,7 @@ CDL Syntax:
         cubic[m3m]:{111} | twin(spinel)     # Spinel-law twin
 """
 
-__version__ = "1.0.0"
+__version__ = "1.3.0"
 __author__ = "Fabian Schuh"
 __email__ = "fabian@gemmology.dev"
 
@@ -32,8 +32,10 @@ from .constants import (
     ALL_POINT_GROUPS,
     CRYSTAL_SYSTEMS,
     DEFAULT_POINT_GROUPS,
+    FEATURE_NAMES,
     MODIFICATION_TYPES,
     NAMED_FORMS,
+    PHENOMENON_TYPES,
     POINT_GROUPS,
     TWIN_LAWS,
     TWIN_TYPES,
@@ -46,13 +48,18 @@ from .exceptions import CDLError, ParseError, ValidationError
 from .models import (
     CrystalDescription,
     CrystalForm,
+    Definition,
+    Feature,
+    FormGroup,
+    FormNode,
     MillerIndex,
     Modification,
+    PhenomenonSpec,
     TwinSpec,
 )
 
 # Lexer/Parser internals (for advanced use)
-from .parser import Lexer, Parser, Token, TokenType, parse_cdl, validate_cdl
+from .parser import Lexer, Parser, Token, TokenType, parse_cdl, strip_comments, validate_cdl
 
 __all__ = [
     # Version
@@ -63,8 +70,13 @@ __all__ = [
     # Data classes
     "CrystalDescription",
     "CrystalForm",
+    "Definition",
+    "Feature",
+    "FormGroup",
+    "FormNode",
     "MillerIndex",
     "Modification",
+    "PhenomenonSpec",
     "TwinSpec",
     # Exceptions
     "CDLError",
@@ -74,8 +86,10 @@ __all__ = [
     "ALL_POINT_GROUPS",
     "CRYSTAL_SYSTEMS",
     "DEFAULT_POINT_GROUPS",
+    "FEATURE_NAMES",
     "MODIFICATION_TYPES",
     "NAMED_FORMS",
+    "PHENOMENON_TYPES",
     "POINT_GROUPS",
     "TWIN_LAWS",
     "TWIN_TYPES",
@@ -84,4 +98,5 @@ __all__ = [
     "Parser",
     "Token",
     "TokenType",
+    "strip_comments",
 ]
