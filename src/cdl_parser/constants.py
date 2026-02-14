@@ -139,15 +139,29 @@ TWIN_TYPES: set[str] = {
 
 FEATURE_NAMES: set[str] = {
     # Growth features
-    "phantom", "sector", "zoning", "skeletal", "dendritic",
+    "phantom",
+    "sector",
+    "zoning",
+    "skeletal",
+    "dendritic",
     # Surface features
-    "striation", "trigon", "etch_pit", "growth_hillock",
+    "striation",
+    "trigon",
+    "etch_pit",
+    "growth_hillock",
     # Inclusion features
-    "inclusion", "needle", "silk", "fluid", "bubble",
+    "inclusion",
+    "needle",
+    "silk",
+    "fluid",
+    "bubble",
     # Color features
-    "colour", "colour_zone", "pleochroism",
+    "colour",
+    "colour_zone",
+    "pleochroism",
     # Other
-    "lamellar", "banding",
+    "lamellar",
+    "banding",
 }
 
 # =============================================================================
@@ -155,6 +169,12 @@ FEATURE_NAMES: set[str] = {
 # =============================================================================
 
 PHENOMENON_TYPES: set[str] = {
-    "asterism", "chatoyancy", "adularescence", "labradorescence",
-    "play_of_color", "colour_change", "aventurescence", "iridescence",
+    "asterism",
+    "chatoyancy",
+    "adularescence",
+    "labradorescence",
+    "play_of_color",
+    "colour_change",
+    "aventurescence",
+    "iridescence",
 }

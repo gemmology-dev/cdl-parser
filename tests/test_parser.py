@@ -572,11 +572,7 @@ class TestComments:
 
     def test_mixed_comments(self):
         """Mix of line, block, and doc comments."""
-        cdl = (
-            "#! Mineral: Quartz\n"
-            "# A line comment\n"
-            "/* block */ trigonal[-3m]:{10-10} # inline"
-        )
+        cdl = "#! Mineral: Quartz\n# A line comment\n/* block */ trigonal[-3m]:{10-10} # inline"
         desc = parse_cdl(cdl)
         assert desc.system == "trigonal"
         assert desc.doc_comments == ["Mineral: Quartz"]
@@ -1101,6 +1097,7 @@ class TestVersion:
     def test_version_1_3(self):
         """Version is 1.3.0."""
         import cdl_parser
+
         assert cdl_parser.__version__ == "1.3.0"
 
 
