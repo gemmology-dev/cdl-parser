@@ -110,7 +110,7 @@ def main(args: list[str] | None = None) -> int:
                 print(f"  System: {desc.system}")
                 print(f"  Point Group: {desc.point_group}")
                 print(f"  Forms ({len(desc.forms)}):")
-                for form in desc.forms:
+                for form in desc.flat_forms():
                     print(f"    {form.miller} @ scale={form.scale}")
                 if desc.modifications:
                     print(f"  Modifications ({len(desc.modifications)}):")

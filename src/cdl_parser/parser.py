@@ -752,7 +752,7 @@ class Parser:
         elif token.type == TokenType.FLOAT:
             return float(self._advance().value)
         elif token.type == TokenType.IDENTIFIER:
-            return self._advance().value.lower()
+            return str(self._advance().value).lower()
         elif token.type == TokenType.POINT_GROUP:
             # Handle numeric point groups like '1', '3' as values
             value = token.value
@@ -762,7 +762,7 @@ class Parser:
                 return result
             except ValueError:
                 pass
-            return self._advance().value
+            return str(self._advance().value)
         raise ParseError("Expected feature value", position=token.position)
 
     def _parse_phenomenon(self) -> PhenomenonSpec:
