@@ -246,20 +246,18 @@ def _form_node_to_dict(node: FormNode) -> dict[str, Any]:
             "scale": node.scale,
             "name": node.name,
             "label": node.label,
-            "features": [
-                {"name": feat.name, "values": feat.values}
-                for feat in node.features
-            ] if node.features else None,
+            "features": [{"name": feat.name, "values": feat.values} for feat in node.features]
+            if node.features
+            else None,
         }
     elif isinstance(node, FormGroup):
         return {
             "type": "group",
             "forms": [_form_node_to_dict(f) for f in node.forms],
             "label": node.label,
-            "features": [
-                {"name": feat.name, "values": feat.values}
-                for feat in node.features
-            ] if node.features else None,
+            "features": [{"name": feat.name, "values": feat.values} for feat in node.features]
+            if node.features
+            else None,
         }
     return {}
 
@@ -346,10 +344,9 @@ class CrystalDescription:
                     "scale": f.scale,
                     "name": f.name,
                     "label": f.label,
-                    "features": [
-                        {"name": feat.name, "values": feat.values}
-                        for feat in f.features
-                    ] if f.features else None,
+                    "features": [{"name": feat.name, "values": feat.values} for feat in f.features]
+                    if f.features
+                    else None,
                 }
                 for f in self.flat_forms()
             ],
@@ -373,7 +370,9 @@ class CrystalDescription:
             "definitions": [
                 {"name": d.name, "body": [_form_node_to_dict(f) for f in d.body]}
                 for d in self.definitions
-            ] if self.definitions else None,
+            ]
+            if self.definitions
+            else None,
         }
 
 
@@ -386,10 +385,15 @@ def _flatten_node(
             merged = list(parent_features)
             if node.features:
                 merged.extend(node.features)
-            return [CrystalForm(
-                miller=node.miller, scale=node.scale,
-                name=node.name, features=merged, label=node.label,
-            )]
+            return [
+                CrystalForm(
+                    miller=node.miller,
+                    scale=node.scale,
+                    name=node.name,
+                    features=merged,
+                    label=node.label,
+                )
+            ]
         return [node]
     elif isinstance(node, FormGroup):
         combined_features = list(parent_features) if parent_features else []

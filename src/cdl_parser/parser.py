@@ -70,6 +70,7 @@ def strip_comments(text: str) -> tuple[str, list[str]]:
 
     return text, doc_comments
 
+
 # =============================================================================
 # Token Types
 # =============================================================================
@@ -433,7 +434,10 @@ class Parser:
         phenomenon = None
         if self._current().type == TokenType.PIPE:
             self._advance()  # consume |
-        if self._current().type == TokenType.IDENTIFIER and self._current().value.lower() == "phenomenon":
+        if (
+            self._current().type == TokenType.IDENTIFIER
+            and self._current().value.lower() == "phenomenon"
+        ):
             phenomenon = self._parse_phenomenon()
 
         return CrystalDescription(
@@ -792,7 +796,11 @@ class Parser:
                 else:
                     # Bare identifier value
                     params[key] = True
-            elif self._current().type in (TokenType.INTEGER, TokenType.FLOAT, TokenType.POINT_GROUP):
+            elif self._current().type in (
+                TokenType.INTEGER,
+                TokenType.FLOAT,
+                TokenType.POINT_GROUP,
+            ):
                 val = self._parse_feature_value()
                 params["value"] = val
 
