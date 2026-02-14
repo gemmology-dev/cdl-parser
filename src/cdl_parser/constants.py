@@ -120,6 +120,7 @@ MODIFICATION_TYPES: set[str] = {
     "truncate",  # Cut off corners/edges
     "taper",  # Make narrower in one direction
     "bevel",  # Add beveled edges
+    "flatten",  # Compress along an axis
 }
 
 # =============================================================================
@@ -130,4 +131,30 @@ TWIN_TYPES: set[str] = {
     "contact",  # Contact twin (share composition plane)
     "penetration",  # Penetration twin (interpenetrating)
     "cyclic",  # Cyclic twin (multiple individuals)
+}
+
+# =============================================================================
+# Feature Names (CDL v1.2)
+# =============================================================================
+
+FEATURE_NAMES: set[str] = {
+    # Growth features
+    "phantom", "sector", "zoning", "skeletal", "dendritic",
+    # Surface features
+    "striation", "trigon", "etch_pit", "growth_hillock",
+    # Inclusion features
+    "inclusion", "needle", "silk", "fluid", "bubble",
+    # Color features
+    "colour", "colour_zone", "pleochroism",
+    # Other
+    "lamellar", "banding",
+}
+
+# =============================================================================
+# Phenomenon Types (CDL v1.2)
+# =============================================================================
+
+PHENOMENON_TYPES: set[str] = {
+    "asterism", "chatoyancy", "adularescence", "labradorescence",
+    "play_of_color", "colour_change", "aventurescence", "iridescence",
 }

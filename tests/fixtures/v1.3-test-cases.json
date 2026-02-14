@@ -1,0 +1,223 @@
+{
+  "version": "1.3.0",
+  "description": "CDL v1.3 test cases for JS parser parity testing",
+  "test_cases": [
+    {
+      "name": "simple_group",
+      "cdl": "cubic[m3m]:({111} + {100})",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 2,
+        "has_groups": true,
+        "definitions_count": 0
+      }
+    },
+    {
+      "name": "group_with_features",
+      "cdl": "cubic[m3m]:({111}@1.0 + {100}@1.3)[phantom:3]",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 2,
+        "has_groups": true,
+        "definitions_count": 0,
+        "flat_forms_all_have_feature": "phantom"
+      }
+    },
+    {
+      "name": "group_plus_form",
+      "cdl": "cubic[m3m]:({111} + {100})[phantom:3] + {110}@0.8",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 2,
+        "flat_form_count": 3,
+        "has_groups": true,
+        "definitions_count": 0
+      }
+    },
+    {
+      "name": "nested_group",
+      "cdl": "cubic[m3m]:(({111}) + {100})",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 2,
+        "has_groups": true,
+        "definitions_count": 0
+      }
+    },
+    {
+      "name": "labeled_forms",
+      "cdl": "cubic[m3m]:core:{111}@1.0 + rim:{100}@1.3",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 2,
+        "flat_form_count": 2,
+        "has_groups": false,
+        "definitions_count": 0,
+        "flat_forms": [
+          {"label": "core", "miller": [1, 1, 1], "scale": 1.0},
+          {"label": "rim", "miller": [1, 0, 0], "scale": 1.3}
+        ]
+      }
+    },
+    {
+      "name": "labeled_group",
+      "cdl": "cubic[m3m]:core:({111} + {100})[phantom:3]",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 2,
+        "has_groups": true,
+        "group_label": "core",
+        "definitions_count": 0
+      }
+    },
+    {
+      "name": "simple_definition",
+      "cdl": "@oct = {111}@1.0\ncubic[m3m]:$oct + {100}@1.3",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 2,
+        "flat_form_count": 2,
+        "has_groups": false,
+        "definitions_count": 1,
+        "flat_forms": [
+          {"miller": [1, 1, 1], "scale": 1.0},
+          {"miller": [1, 0, 0], "scale": 1.3}
+        ]
+      }
+    },
+    {
+      "name": "multiple_definitions",
+      "cdl": "@prism = {10-10}@1.0\n@rhomb = {10-11}@0.8\ntrigonal[-3m]:$prism + $rhomb",
+      "expected": {
+        "system": "trigonal",
+        "point_group": "-3m",
+        "form_count": 2,
+        "flat_form_count": 2,
+        "has_groups": false,
+        "definitions_count": 2
+      }
+    },
+    {
+      "name": "definition_referencing_definition",
+      "cdl": "@a = {111}@1.0\n@b = {100}@1.3\n@combo = $a + $b\ncubic[m3m]:$combo",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 2,
+        "flat_form_count": 2,
+        "has_groups": false,
+        "definitions_count": 3
+      }
+    },
+    {
+      "name": "undefined_reference",
+      "cdl": "cubic[m3m]:$unknown",
+      "expected": {
+        "error": true,
+        "error_type": "ParseError"
+      }
+    },
+    {
+      "name": "v1_simple_octahedron",
+      "cdl": "cubic[m3m]:{111}",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 1,
+        "has_groups": false,
+        "definitions_count": 0
+      }
+    },
+    {
+      "name": "v1_truncated_octahedron",
+      "cdl": "cubic[m3m]:{111}@1.0 + {100}@1.3",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 2,
+        "flat_form_count": 2,
+        "has_groups": false,
+        "definitions_count": 0
+      }
+    },
+    {
+      "name": "v1_with_features",
+      "cdl": "cubic[m3m]:{111}@1.0[phantom:3]",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 1,
+        "has_groups": false,
+        "definitions_count": 0,
+        "flat_forms": [
+          {"miller": [1, 1, 1], "scale": 1.0, "features": [{"name": "phantom", "values": [3]}]}
+        ]
+      }
+    },
+    {
+      "name": "v1_with_twin",
+      "cdl": "cubic[m3m]:{111} | twin(spinel)",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 1,
+        "has_groups": false,
+        "definitions_count": 0,
+        "has_twin": true,
+        "twin_law": "spinel"
+      }
+    },
+    {
+      "name": "group_with_form_features_and_group_features",
+      "cdl": "cubic[m3m]:({111}[trigon:dense] + {100})[phantom:3]",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 2,
+        "has_groups": true,
+        "definitions_count": 0,
+        "note": "First flat form gets phantom+trigon, second gets phantom only"
+      }
+    },
+    {
+      "name": "definitions_with_comments",
+      "cdl": "# Comment\n@oct = {111}@1.0\n# Another comment\ncubic[m3m]:$oct",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 1,
+        "has_groups": false,
+        "definitions_count": 1
+      }
+    },
+    {
+      "name": "definition_with_doc_comments",
+      "cdl": "#! Mineral: Diamond\n@oct = {111}@1.0\ncubic[m3m]:$oct",
+      "expected": {
+        "system": "cubic",
+        "point_group": "m3m",
+        "form_count": 1,
+        "flat_form_count": 1,
+        "has_groups": false,
+        "definitions_count": 1,
+        "doc_comments": ["Mineral: Diamond"]
+      }
+    }
+  ]
+}

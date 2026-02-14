@@ -4,6 +4,7 @@ CDL Parser.
 Lexer and parser for Crystal Description Language strings.
 """
 
+import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -20,10 +21,54 @@ from .exceptions import ParseError, ValidationError
 from .models import (
     CrystalDescription,
     CrystalForm,
+    Definition,
+    Feature,
+    FormGroup,
+    FormNode,
     MillerIndex,
     Modification,
+    PhenomenonSpec,
     TwinSpec,
 )
+
+
+def strip_comments(text: str) -> tuple[str, list[str]]:
+    """Strip comments from CDL text before lexing.
+
+    Extracts doc comments (#! Key: Value) and removes block (/* ... */)
+    and line (# ...) comments.
+
+    Args:
+        text: Raw CDL string possibly containing comments.
+
+    Returns:
+        Tuple of (cleaned text with comments removed, list of doc comment strings).
+    """
+    doc_comments: list[str] = []
+
+    # Extract doc comments (#! ...) before stripping anything else.
+    # Process line-by-line so we can identify #! lines.
+    lines = text.split("\n")
+    processed_lines: list[str] = []
+    for line in lines:
+        stripped = line.lstrip()
+        if stripped.startswith("#!"):
+            # Doc comment — capture the content after "#! " or "#!"
+            content = stripped[2:].strip()
+            doc_comments.append(content)
+            # Don't include this line in the CDL text
+        else:
+            processed_lines.append(line)
+
+    text = "\n".join(processed_lines)
+
+    # Strip block comments (/* ... */), which may span multiple lines
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+
+    # Strip line comments (# to end of line)
+    text = re.sub(r"#[^\n]*", "", text)
+
+    return text, doc_comments
 
 # =============================================================================
 # Token Types
@@ -49,6 +94,8 @@ class TokenType(Enum):
     INTEGER = "INTEGER"
     FLOAT = "FLOAT"
     IDENTIFIER = "IDENTIFIER"
+    DOLLAR = "DOLLAR"
+    EQUALS = "EQUALS"
     EOF = "EOF"
 
 
@@ -157,6 +204,8 @@ class Lexer:
             ",": TokenType.COMMA,
             "(": TokenType.LPAREN,
             ")": TokenType.RPAREN,
+            "$": TokenType.DOLLAR,
+            "=": TokenType.EQUALS,
         }
 
         if ch in single_char_tokens:
@@ -211,6 +260,86 @@ class Lexer:
             if token.type == TokenType.EOF:
                 break
         return tokens
+
+
+# =============================================================================
+# Definition Pre-processing
+# =============================================================================
+
+
+def _preprocess_definitions(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """Extract @name = expression definitions and resolve $name references.
+
+    Args:
+        text: Comment-stripped CDL text (may be multi-line).
+
+    Returns:
+        Tuple of (resolved CDL body text, list of (name, raw_body) definition pairs).
+    """
+    lines = text.split("\n")
+    definitions: list[tuple[str, str]] = []  # (name, raw_body)
+    body_lines: list[str] = []
+
+    # First pass: extract definition lines
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("@"):
+            # Parse @name = expression
+            match = re.match(r"@(\w+)\s*=\s*(.+)", stripped)
+            if match:
+                name = match.group(1)
+                body = match.group(2).strip()
+                definitions.append((name, body))
+                continue
+        body_lines.append(line)
+
+    # Build name -> body mapping, resolving forward references within definitions
+    resolved: dict[str, str] = {}
+    for name, body in definitions:
+        # Resolve $references within this definition body
+        resolved_body = body
+        for prev_name, prev_body in resolved.items():
+            resolved_body = re.sub(r"\$" + prev_name + r"(?!\w)", prev_body, resolved_body)
+        resolved[name] = resolved_body
+
+    # Second pass: resolve $references in the main body
+    body_text = "\n".join(body_lines)
+    for name, resolved_body in resolved.items():
+        body_text = re.sub(r"\$" + name + r"(?!\w)", resolved_body, body_text)
+
+    # Check for unresolved $references
+    unresolved = re.findall(r"\$(\w+)", body_text)
+    if unresolved:
+        raise ParseError(f"Undefined reference: ${unresolved[0]}", position=-1)
+
+    return body_text, definitions
+
+
+def _parse_definition_bodies(
+    definitions: list[tuple[str, str]],
+) -> list[Definition]:
+    """Parse raw definition bodies into Definition objects.
+
+    Each definition body is parsed as a form list.
+    """
+    result: list[Definition] = []
+    resolved_bodies: dict[str, str] = {}
+
+    for name, raw_body in definitions:
+        # Resolve references within this body
+        body = raw_body
+        for prev_name, prev_resolved in resolved_bodies.items():
+            body = re.sub(r"\$" + prev_name + r"(?!\w)", prev_resolved, body)
+        resolved_bodies[name] = body
+
+        # Parse the resolved body as a form list
+        lexer = Lexer(body)
+        tokens = lexer.tokenize()
+        parser = Parser(tokens)
+        forms = parser._parse_form_list()
+        result.append(Definition(name=name, body=forms))
+
+    return result
 
 
 # =============================================================================
@@ -283,12 +412,14 @@ class Parser:
         modifications = []
         if self._current().type == TokenType.PIPE:
             self._advance()  # consume |
-            # Check if it's modifications or twin
+            # Check if it's modifications, twin, or phenomenon
             if self._current().type == TokenType.IDENTIFIER:
                 ident = self._current().value.lower()
                 if ident == "twin":
                     pass  # It's a twin, not modifications
-                elif ident in {"elongate", "truncate", "taper", "bevel"}:
+                elif ident == "phenomenon":
+                    pass  # It's a phenomenon, not modifications
+                elif ident in {"elongate", "truncate", "taper", "bevel", "flatten"}:
                     modifications = self._parse_modifications()
 
         # Parse optional twin
@@ -298,26 +429,88 @@ class Parser:
         if self._current().type == TokenType.IDENTIFIER and self._current().value.lower() == "twin":
             twin = self._parse_twin()
 
+        # Parse optional phenomenon
+        phenomenon = None
+        if self._current().type == TokenType.PIPE:
+            self._advance()  # consume |
+        if self._current().type == TokenType.IDENTIFIER and self._current().value.lower() == "phenomenon":
+            phenomenon = self._parse_phenomenon()
+
         return CrystalDescription(
             system=system,
             point_group=point_group,
             forms=forms,
             modifications=modifications,
             twin=twin,
+            phenomenon=phenomenon,
         )
 
-    def _parse_form_list(self) -> list[CrystalForm]:
-        """Parse form_list = form ('+' form)*"""
-        forms = [self._parse_form()]
+    def _parse_form_list(self) -> list[FormNode]:
+        """Parse form_list = form_or_group ('+' form_or_group)*"""
+        forms: list[FormNode] = [self._parse_form_or_group()]
 
         while self._current().type == TokenType.PLUS:
             self._advance()  # consume +
-            forms.append(self._parse_form())
+            forms.append(self._parse_form_or_group())
 
         return forms
 
-    def _parse_form(self) -> CrystalForm:
-        """Parse form = (form_name | miller_index) ['@' scale]"""
+    def _parse_form_or_group(self) -> FormNode:
+        """Parse either a parenthesized group or a single form.
+
+        Handles:
+        - (form + form)[features] - group
+        - label:(form + form)[features] - labeled group
+        - label:{hkl}@scale[features] - labeled form
+        - {hkl}@scale[features] - plain form
+        - named_form@scale[features] - named form
+        """
+        label = None
+
+        # Check for label: identifier followed by COLON, then LBRACE or LPAREN
+        if self._current().type == TokenType.IDENTIFIER:
+            ident = self._current().value
+            if self._peek().type == TokenType.COLON:
+                # Look at what follows the colon
+                after_colon = self._peek(2)
+                if after_colon.type == TokenType.LPAREN:
+                    # label:(group)
+                    label = ident
+                    self._advance()  # consume identifier
+                    self._advance()  # consume colon
+                elif after_colon.type == TokenType.LBRACE:
+                    # Could be label:{hkl} - but only if identifier is NOT a named form
+                    # If it IS a named form, we'd need a different syntax.
+                    # Named forms use: octahedron (no colon) - so label:{hkl} is unambiguous
+                    # when the identifier is NOT a known crystal system
+                    ident_lower = ident.lower()
+                    if ident_lower not in NAMED_FORMS:
+                        label = ident
+                        self._advance()  # consume identifier
+                        self._advance()  # consume colon
+
+        if self._current().type == TokenType.LPAREN:
+            return self._parse_group(label)
+        else:
+            return self._parse_form(label)
+
+    def _parse_group(self, label: str | None = None) -> FormGroup:
+        """Parse a parenthesized group: (form + form)[features]"""
+        self._advance()  # consume (
+
+        forms = self._parse_form_list()
+
+        self._expect(TokenType.RPAREN)
+
+        # Optional features
+        features = None
+        if self._current().type == TokenType.LBRACKET:
+            features = self._parse_features()
+
+        return FormGroup(forms=forms, features=features, label=label)
+
+    def _parse_form(self, label: str | None = None) -> CrystalForm:
+        """Parse form = (form_name | miller_index) ['@' scale] ['[' features ']']"""
         name = None
         miller = None
 
@@ -349,7 +542,12 @@ class Parser:
             else:
                 raise ParseError("Expected scale value after @", position=scale_token.position)
 
-        return CrystalForm(miller=miller, scale=scale, name=name)
+        # Optional features [feature:value, ...]
+        features = None
+        if self._current().type == TokenType.LBRACKET:
+            features = self._parse_features()
+
+        return CrystalForm(miller=miller, scale=scale, name=name, features=features, label=label)
 
     def _parse_miller_index(self) -> MillerIndex:
         """Parse Miller index {hkl} or {hkil}.
@@ -415,7 +613,7 @@ class Parser:
         mod_token = self._current()
         mod_type = self._expect(TokenType.IDENTIFIER).value.lower()
 
-        if mod_type not in {"elongate", "truncate", "taper", "bevel"}:
+        if mod_type not in {"elongate", "truncate", "taper", "bevel", "flatten"}:
             raise ParseError(f"Unknown modification type: {mod_type}", position=mod_token.position)
 
         self._expect(TokenType.LPAREN)
@@ -450,6 +648,12 @@ class Parser:
             self._expect(TokenType.COLON)
             width = self._parse_number()
             params = {"edges": edges, "width": width}
+        elif mod_type == "flatten":
+            # flatten(axis:ratio)
+            axis = self._expect(TokenType.IDENTIFIER).value.lower()
+            self._expect(TokenType.COLON)
+            ratio = self._parse_number()
+            params = {"axis": axis, "ratio": ratio}
 
         self._expect(TokenType.RPAREN)
 
@@ -498,6 +702,102 @@ class Parser:
         self._expect(TokenType.RPAREN)
 
         return TwinSpec(law=law, axis=axis, angle=angle, twin_type=twin_type, count=count)
+
+    def _parse_features(self) -> list[Feature]:
+        """Parse feature list [name:value, name:value, ...]"""
+        self._advance()  # consume [
+        features = []
+
+        while self._current().type != TokenType.RBRACKET and self._current().type != TokenType.EOF:
+            # Parse feature name
+            name_token = self._expect(TokenType.IDENTIFIER)
+            name = name_token.value.lower()
+
+            # Expect colon
+            self._expect(TokenType.COLON)
+
+            # Parse values until comma or ]
+            values: list[int | float | str] = []
+            values.append(self._parse_feature_value())
+
+            # Check for more values separated by comma
+            # But distinguish "next value" from "next feature"
+            # Next feature = IDENTIFIER followed by COLON
+            while self._current().type == TokenType.COMMA:
+                next_tok = self._peek(1)
+                next_next = self._peek(2)
+                if next_tok.type == TokenType.IDENTIFIER and next_next.type == TokenType.COLON:
+                    break  # It's a new feature
+                self._advance()  # consume comma
+                values.append(self._parse_feature_value())
+
+            features.append(Feature(name=name, values=values))
+
+            # Consume comma between features
+            if self._current().type == TokenType.COMMA:
+                self._advance()
+
+        self._expect(TokenType.RBRACKET)
+        return features
+
+    def _parse_feature_value(self) -> int | float | str:
+        """Parse a single feature value (number or identifier)."""
+        token = self._current()
+        if token.type == TokenType.INTEGER:
+            return int(self._advance().value)
+        elif token.type == TokenType.FLOAT:
+            return float(self._advance().value)
+        elif token.type == TokenType.IDENTIFIER:
+            return self._advance().value.lower()
+        elif token.type == TokenType.POINT_GROUP:
+            # Handle numeric point groups like '1', '3' as values
+            value = token.value
+            try:
+                result = int(value)
+                self._advance()
+                return result
+            except ValueError:
+                pass
+            return self._advance().value
+        raise ParseError("Expected feature value", position=token.position)
+
+    def _parse_phenomenon(self) -> PhenomenonSpec:
+        """Parse phenomenon[type:value, param:value, ...]"""
+        self._expect(TokenType.IDENTIFIER)  # consume 'phenomenon'
+        self._expect(TokenType.LBRACKET)
+
+        # First token is the phenomenon type
+        phen_type = self._expect(TokenType.IDENTIFIER).value.lower()
+
+        params: dict[str, int | float | str] = {}
+
+        # Check for :value after type (e.g., asterism:6)
+        if self._current().type == TokenType.COLON:
+            self._advance()
+            val = self._parse_feature_value()
+            # Store as the primary value
+            if isinstance(val, (int, float)):
+                params["value"] = val
+            else:
+                params["intensity"] = val
+
+        # Parse additional comma-separated params
+        while self._current().type == TokenType.COMMA:
+            self._advance()
+            if self._current().type == TokenType.IDENTIFIER:
+                key = self._advance().value.lower()
+                if self._current().type == TokenType.COLON:
+                    self._advance()
+                    params[key] = self._parse_feature_value()
+                else:
+                    # Bare identifier value
+                    params[key] = True
+            elif self._current().type in (TokenType.INTEGER, TokenType.FLOAT, TokenType.POINT_GROUP):
+                val = self._parse_feature_value()
+                params["value"] = val
+
+        self._expect(TokenType.RBRACKET)
+        return PhenomenonSpec(type=phen_type, params=params)
 
     def _parse_number(self) -> float:
         """Parse a number (int or float).
@@ -571,10 +871,27 @@ def parse_cdl(text: str) -> CrystalDescription:
         >>> desc.forms[0].miller.i
         -1
     """
-    lexer = Lexer(text)
+    cleaned, doc_comments = strip_comments(text)
+    cleaned = cleaned.strip()
+    if not cleaned:
+        raise ParseError("Empty CDL string after stripping comments", position=0)
+
+    # Pre-process definitions (@name = expression) and resolve $references
+    body_text, raw_definitions = _preprocess_definitions(cleaned)
+    body_text = body_text.strip()
+    if not body_text:
+        raise ParseError("Empty CDL string after extracting definitions", position=0)
+
+    # Parse definition bodies into Definition objects
+    definitions = _parse_definition_bodies(raw_definitions) if raw_definitions else None
+
+    lexer = Lexer(body_text)
     tokens = lexer.tokenize()
     parser = Parser(tokens)
-    return parser.parse()
+    desc = parser.parse()
+    desc.doc_comments = doc_comments if doc_comments else None
+    desc.definitions = definitions
+    return desc
 
 
 def validate_cdl(text: str) -> tuple[bool, str | None]:
