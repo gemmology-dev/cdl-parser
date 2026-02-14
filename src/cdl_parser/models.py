@@ -7,7 +7,7 @@ Data classes representing Crystal Description Language components.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Union
+from typing import Any
 
 
 @dataclass
@@ -147,7 +147,7 @@ class FormGroup:
 
 
 # Type alias for form tree nodes
-FormNode = Union[CrystalForm, FormGroup]
+FormNode = CrystalForm | FormGroup
 
 
 @dataclass
