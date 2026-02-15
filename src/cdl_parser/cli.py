@@ -15,6 +15,7 @@ from .constants import (
     POINT_GROUPS,
     TWIN_LAWS,
 )
+from .models import AmorphousDescription
 from .parser import parse_cdl, validate_cdl
 
 
@@ -105,6 +106,14 @@ def main(args: list[str] | None = None) -> int:
                 import json
 
                 print(json.dumps(desc.to_dict(), indent=2))
+            elif isinstance(desc, AmorphousDescription):
+                print("Parsed successfully!")
+                print(f"  System: {desc.system}")
+                print(f"  Subtype: {desc.subtype}")
+                print(f"  Shapes: {', '.join(desc.shapes)}")
+                if desc.phenomenon:
+                    print(f"  Phenomenon: {desc.phenomenon}")
+                print(f"\nReconstructed: {desc}")
             else:
                 print("Parsed successfully!")
                 print(f"  System: {desc.system}")

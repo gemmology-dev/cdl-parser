@@ -10,7 +10,11 @@ from enum import Enum
 from typing import Any
 
 from .constants import (
+    AGGREGATE_ARRANGEMENTS,
+    AGGREGATE_ORIENTATIONS,
     ALL_POINT_GROUPS,
+    AMORPHOUS_SHAPES,
+    AMORPHOUS_SUBTYPES,
     CRYSTAL_SYSTEMS,
     DEFAULT_POINT_GROUPS,
     NAMED_FORMS,
@@ -19,6 +23,8 @@ from .constants import (
 )
 from .exceptions import ParseError, ValidationError
 from .models import (
+    AggregateSpec,
+    AmorphousDescription,
     CrystalDescription,
     CrystalForm,
     Definition,
@@ -27,6 +33,7 @@ from .models import (
     FormNode,
     MillerIndex,
     Modification,
+    NestedGrowth,
     PhenomenonSpec,
     TwinSpec,
 )
@@ -97,6 +104,9 @@ class TokenType(Enum):
     IDENTIFIER = "IDENTIFIER"
     DOLLAR = "DOLLAR"
     EQUALS = "EQUALS"
+    GREATER = "GREATER"
+    TILDE = "TILDE"
+    AMORPHOUS = "AMORPHOUS"
     EOF = "EOF"
 
 
@@ -172,6 +182,10 @@ class Lexer:
         value = self.text[start : self.pos]
         value_lower = value.lower()
 
+        # Check if it's "amorphous"
+        if value_lower == "amorphous":
+            return Token(TokenType.AMORPHOUS, value_lower, start)
+
         # Check if it's a crystal system
         if value_lower in CRYSTAL_SYSTEMS:
             return Token(TokenType.SYSTEM, value_lower, start)
@@ -207,6 +221,8 @@ class Lexer:
             ")": TokenType.RPAREN,
             "$": TokenType.DOLLAR,
             "=": TokenType.EQUALS,
+            ">": TokenType.GREATER,
+            "~": TokenType.TILDE,
         }
 
         if ch in single_char_tokens:
@@ -334,11 +350,15 @@ def _parse_definition_bodies(
         resolved_bodies[name] = body
 
         # Parse the resolved body as a form list
-        lexer = Lexer(body)
-        tokens = lexer.tokenize()
-        parser = Parser(tokens)
-        forms = parser._parse_form_list()
-        result.append(Definition(name=name, body=forms))
+        try:
+            lexer = Lexer(body)
+            tokens = lexer.tokenize()
+            parser = Parser(tokens)
+            forms = parser._parse_form_list()
+            result.append(Definition(name=name, body=forms))
+        except (ParseError, ValidationError):
+            # Feature definitions or other non-form bodies: store as single-form fallback
+            raise
 
     return result
 
@@ -381,8 +401,12 @@ class Parser:
             )
         return self._advance()
 
-    def parse(self) -> CrystalDescription:
-        """Parse CDL string to CrystalDescription."""
+    def parse(self) -> CrystalDescription | AmorphousDescription:
+        """Parse CDL string to CrystalDescription or AmorphousDescription."""
+        # Check for amorphous
+        if self._current().type == TokenType.AMORPHOUS:
+            return self.parse_amorphous()
+
         # Parse system
         system_token = self._expect(TokenType.SYSTEM)
         system = system_token.value
@@ -449,15 +473,154 @@ class Parser:
             phenomenon=phenomenon,
         )
 
+    def parse_amorphous(self) -> AmorphousDescription:
+        """Parse amorphous material description.
+
+        Syntax: amorphous[subtype]:{shape1, shape2, ...}[features] | phenomenon[...]
+        """
+        self._advance()  # consume AMORPHOUS token
+
+        # Parse optional [subtype]
+        subtype = "none"
+        if self._current().type == TokenType.LBRACKET:
+            self._advance()  # consume [
+            sub_token = self._expect(TokenType.IDENTIFIER)
+            subtype = sub_token.value.lower()
+            if subtype != "none" and subtype not in AMORPHOUS_SUBTYPES:
+                raise ParseError(
+                    f"Unknown amorphous subtype: {subtype}", position=sub_token.position
+                )
+            self._expect(TokenType.RBRACKET)
+
+        # Expect colon
+        self._expect(TokenType.COLON)
+
+        # Parse {shape1, shape2, ...} — identifiers inside braces
+        self._expect(TokenType.LBRACE)
+        shapes: list[str] = []
+        while self._current().type != TokenType.RBRACE and self._current().type != TokenType.EOF:
+            shape_token = self._expect(TokenType.IDENTIFIER)
+            shape = shape_token.value.lower()
+            if shape not in AMORPHOUS_SHAPES:
+                raise ParseError(
+                    f"Unknown amorphous shape: {shape}", position=shape_token.position
+                )
+            shapes.append(shape)
+            if self._current().type == TokenType.COMMA:
+                self._advance()  # consume ,
+        self._expect(TokenType.RBRACE)
+
+        if not shapes:
+            raise ParseError("At least one shape is required", position=self._current().position)
+
+        # Parse optional [features]
+        features = None
+        if self._current().type == TokenType.LBRACKET:
+            features = self._parse_features()
+
+        # Parse optional | phenomenon[...]
+        phenomenon = None
+        if self._current().type == TokenType.PIPE:
+            self._advance()  # consume |
+            if (
+                self._current().type == TokenType.IDENTIFIER
+                and self._current().value.lower() == "phenomenon"
+            ):
+                phenomenon = self._parse_phenomenon()
+
+        return AmorphousDescription(
+            subtype=subtype,
+            shapes=shapes,
+            features=features,
+            phenomenon=phenomenon,
+        )
+
     def _parse_form_list(self) -> list[FormNode]:
-        """Parse form_list = form_or_group ('+' form_or_group)*"""
-        forms: list[FormNode] = [self._parse_form_or_group()]
+        """Parse form_list = aggregate_expr ('+' aggregate_expr)*"""
+        forms: list[FormNode] = [self._parse_aggregate_expr()]
 
         while self._current().type == TokenType.PLUS:
             self._advance()  # consume +
-            forms.append(self._parse_form_or_group())
+            forms.append(self._parse_aggregate_expr())
 
         return forms
+
+    def _parse_aggregate_expr(self) -> FormNode:
+        """Parse aggregate_expr = growth_expr ['~' arrangement_spec]"""
+        node = self._parse_growth_expr()
+
+        if self._current().type == TokenType.TILDE:
+            self._advance()  # consume ~
+            return self._parse_aggregate_spec(node)
+
+        return node
+
+    def _parse_growth_expr(self) -> FormNode:
+        """Parse growth_expr = primary_form ('>' growth_expr)?  (right-recursive)"""
+        node = self._parse_form_or_group()
+
+        if self._current().type == TokenType.GREATER:
+            self._advance()  # consume >
+            overgrowth = self._parse_growth_expr()  # right-recursive
+            return NestedGrowth(base=node, overgrowth=overgrowth)
+
+        return node
+
+    def _parse_aggregate_spec(self, form: FormNode) -> AggregateSpec:
+        """Parse arrangement_spec after ~."""
+        # Parse arrangement identifier
+        arr_token = self._expect(TokenType.IDENTIFIER)
+        arrangement = arr_token.value.lower()
+        if arrangement not in AGGREGATE_ARRANGEMENTS:
+            raise ParseError(
+                f"Unknown aggregate arrangement: {arrangement}", position=arr_token.position
+            )
+
+        # Parse [count]
+        self._expect(TokenType.LBRACKET)
+        count = self._parse_int_or_point_group()
+        self._expect(TokenType.RBRACKET)
+
+        # Parse optional @spacing
+        spacing = None
+        if self._current().type == TokenType.AT:
+            self._advance()  # consume @
+            # Read spacing value (number + optional unit)
+            sp_token = self._current()
+            if sp_token.type in (TokenType.INTEGER, TokenType.FLOAT):
+                spacing_val = str(self._advance().value)
+                # Check for unit suffix
+                if self._current().type == TokenType.IDENTIFIER:
+                    spacing_val += self._advance().value
+                spacing = spacing_val
+            else:
+                raise ParseError("Expected spacing value after @", position=sp_token.position)
+
+        # Parse optional [orientation] with optional :param
+        orientation = None
+        orientation_param = None
+        if self._current().type == TokenType.LBRACKET:
+            self._advance()  # consume [
+            orient_token = self._expect(TokenType.IDENTIFIER)
+            orientation = orient_token.value.lower()
+            if orientation not in AGGREGATE_ORIENTATIONS:
+                raise ParseError(
+                    f"Unknown aggregate orientation: {orientation}",
+                    position=orient_token.position,
+                )
+            if self._current().type == TokenType.COLON:
+                self._advance()  # consume :
+                orientation_param = self._parse_number()
+            self._expect(TokenType.RBRACKET)
+
+        return AggregateSpec(
+            form=form,
+            arrangement=arrangement,
+            count=count,
+            spacing=spacing,
+            orientation=orientation,
+            orientation_param=orientation_param,
+        )
 
     def _parse_form_or_group(self) -> FormNode:
         """Parse either a parenthesized group or a single form.
@@ -499,7 +662,7 @@ class Parser:
             return self._parse_form(label)
 
     def _parse_group(self, label: str | None = None) -> FormGroup:
-        """Parse a parenthesized group: (form + form)[features]"""
+        """Parse a parenthesized group: (form + form)[features] [| twin(...)]"""
         self._advance()  # consume (
 
         forms = self._parse_form_list()
@@ -511,7 +674,16 @@ class Parser:
         if self._current().type == TokenType.LBRACKET:
             features = self._parse_features()
 
-        return FormGroup(forms=forms, features=features, label=label)
+        # Optional group-level twin: | twin(...)
+        twin = None
+        if self._current().type == TokenType.PIPE:
+            # Peek ahead to check if it's "twin" — only consume if so
+            next_tok = self._peek()
+            if next_tok.type == TokenType.IDENTIFIER and next_tok.value.lower() == "twin":
+                self._advance()  # consume |
+                twin = self._parse_twin()
+
+        return FormGroup(forms=forms, features=features, label=label, twin=twin)
 
     def _parse_form(self, label: str | None = None) -> CrystalForm:
         """Parse form = (form_name | miller_index) ['@' scale] ['[' features ']']"""
@@ -851,14 +1023,15 @@ class Parser:
 # =============================================================================
 
 
-def parse_cdl(text: str) -> CrystalDescription:
-    """Parse a CDL string to CrystalDescription.
+def parse_cdl(text: str) -> CrystalDescription | AmorphousDescription:
+    """Parse a CDL string to CrystalDescription or AmorphousDescription.
 
     Args:
         text: CDL string like "cubic[m3m]:{111}@1.0 + {100}@0.3"
+             or "amorphous[opalescent]:{massive, botryoidal}"
 
     Returns:
-        CrystalDescription object
+        CrystalDescription or AmorphousDescription object
 
     Raises:
         ParseError: If parsing fails due to syntax error

@@ -134,6 +134,7 @@ class FormGroup:
     forms: list[FormNode]
     features: list[Feature] | None = None
     label: str | None = None
+    twin: TwinSpec | None = None
 
     def __str__(self) -> str:
         form_strs = [str(f) for f in self.forms]
@@ -143,11 +144,63 @@ class FormGroup:
         if self.features:
             feat_str = ", ".join(str(f) for f in self.features)
             s += f"[{feat_str}]"
+        if self.twin:
+            s += f" | {self.twin}"
+        return s
+
+
+@dataclass
+class NestedGrowth:
+    """Nested growth specification (base > overgrowth).
+
+    Right-associative: a > b > c = a > (b > c)
+
+    Attributes:
+        base: The base form node
+        overgrowth: The overgrowth form node
+    """
+
+    base: FormNode
+    overgrowth: FormNode
+
+    def __str__(self) -> str:
+        return f"{self.base} > {self.overgrowth}"
+
+
+@dataclass
+class AggregateSpec:
+    """Aggregate specification (form ~ arrangement[count]).
+
+    Attributes:
+        form: The form node to aggregate
+        arrangement: Arrangement type ('parallel', 'random', 'radial', etc.)
+        count: Number of individuals
+        spacing: Optional spacing value (e.g., '0.5mm')
+        orientation: Optional orientation ('aligned', 'random', 'planar', 'spherical')
+        orientation_param: Optional orientation parameter (float)
+    """
+
+    form: FormNode
+    arrangement: str
+    count: int
+    spacing: str | None = None
+    orientation: str | None = None
+    orientation_param: float | None = None
+
+    def __str__(self) -> str:
+        s = f"{self.form} ~ {self.arrangement}[{self.count}]"
+        if self.spacing:
+            s += f" @{self.spacing}"
+        if self.orientation:
+            s += f" [{self.orientation}"
+            if self.orientation_param is not None:
+                s += f":{self.orientation_param}"
+            s += "]"
         return s
 
 
 # Type alias for form tree nodes
-FormNode = CrystalForm | FormGroup
+FormNode = CrystalForm | FormGroup | NestedGrowth | AggregateSpec
 
 
 @dataclass
@@ -237,6 +290,79 @@ class PhenomenonSpec:
         return "phenomenon[" + ", ".join(parts) + "]"
 
 
+@dataclass
+class AmorphousDescription:
+    """Description of an amorphous material parsed from CDL.
+
+    Used for materials without crystalline structure (e.g., opal, obsidian).
+
+    Attributes:
+        subtype: Amorphous subtype ('opalescent', 'glassy', 'waxy', etc.)
+        shapes: List of shape descriptors ('massive', 'botryoidal', etc.)
+        features: Optional list of feature annotations
+        phenomenon: Optional phenomenon specification
+        doc_comments: Optional list of doc comment strings
+        definitions: Optional list of named definitions
+    """
+
+    subtype: str
+    shapes: list[str]
+    features: list[Feature] | None = None
+    phenomenon: PhenomenonSpec | None = None
+    doc_comments: list[str] | None = None
+    definitions: list[Definition] | None = None
+
+    @property
+    def system(self) -> str:
+        """Return 'amorphous' as the system."""
+        return "amorphous"
+
+    def flat_forms(self) -> list[CrystalForm]:
+        """Return empty list — amorphous materials have no crystal forms."""
+        return []
+
+    def __str__(self) -> str:
+        parts: list[str] = []
+
+        if self.definitions:
+            parts.extend(str(d) for d in self.definitions)
+
+        s = f"amorphous[{self.subtype}]:{{{', '.join(self.shapes)}}}"
+        if self.features:
+            feat_str = ", ".join(str(f) for f in self.features)
+            s += f"[{feat_str}]"
+        parts.append(s)
+
+        if self.phenomenon:
+            parts.append(f" | {self.phenomenon}")
+
+        return "".join(parts)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            "system": "amorphous",
+            "subtype": self.subtype,
+            "shapes": self.shapes,
+            "features": [{"name": feat.name, "values": feat.values} for feat in self.features]
+            if self.features
+            else None,
+            "phenomenon": {
+                "type": self.phenomenon.type,
+                "params": self.phenomenon.params,
+            }
+            if self.phenomenon
+            else None,
+            "doc_comments": self.doc_comments,
+            "definitions": [
+                {"name": d.name, "body": [_form_node_to_dict(f) for f in d.body]}
+                for d in self.definitions
+            ]
+            if self.definitions
+            else None,
+        }
+
+
 def _form_node_to_dict(node: FormNode) -> dict[str, Any]:
     """Convert a FormNode to dictionary representation."""
     if isinstance(node, CrystalForm):
@@ -250,8 +376,24 @@ def _form_node_to_dict(node: FormNode) -> dict[str, Any]:
             if node.features
             else None,
         }
-    elif isinstance(node, FormGroup):
+    elif isinstance(node, NestedGrowth):
         return {
+            "type": "nested_growth",
+            "base": _form_node_to_dict(node.base),
+            "overgrowth": _form_node_to_dict(node.overgrowth),
+        }
+    elif isinstance(node, AggregateSpec):
+        return {
+            "type": "aggregate",
+            "form": _form_node_to_dict(node.form),
+            "arrangement": node.arrangement,
+            "count": node.count,
+            "spacing": node.spacing,
+            "orientation": node.orientation,
+            "orientation_param": node.orientation_param,
+        }
+    elif isinstance(node, FormGroup):
+        result: dict[str, Any] = {
             "type": "group",
             "forms": [_form_node_to_dict(f) for f in node.forms],
             "label": node.label,
@@ -259,6 +401,15 @@ def _form_node_to_dict(node: FormNode) -> dict[str, Any]:
             if node.features
             else None,
         }
+        if node.twin:
+            result["twin"] = {
+                "law": node.twin.law,
+                "axis": node.twin.axis,
+                "angle": node.twin.angle,
+                "twin_type": node.twin.twin_type,
+                "count": node.twin.count,
+            }
+        return result
     return {}
 
 
@@ -395,12 +546,21 @@ def _flatten_node(
                 )
             ]
         return [node]
+    elif isinstance(node, NestedGrowth):
+        result: list[CrystalForm] = []
+        result.extend(_flatten_node(node.base, parent_features))
+        result.extend(_flatten_node(node.overgrowth, parent_features))
+        return result
+    elif isinstance(node, AggregateSpec):
+        return _flatten_node(node.form, parent_features)
     elif isinstance(node, FormGroup):
         combined_features = list(parent_features) if parent_features else []
         if node.features:
             combined_features.extend(node.features)
-        result: list[CrystalForm] = []
+        result_list: list[CrystalForm] = []
         for child in node.forms:
-            result.extend(_flatten_node(child, combined_features if combined_features else None))
-        return result
+            result_list.extend(
+                _flatten_node(child, combined_features if combined_features else None)
+            )
+        return result_list
     return []

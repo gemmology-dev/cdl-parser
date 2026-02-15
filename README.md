@@ -4,7 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/cdl-parser.svg)](https://pypi.org/project/cdl-parser/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Crystal Description Language (CDL) Parser** - A Python library for parsing compact string notation describing crystal morphology for gemmological and mineralogical visualization.
+**Crystal Description Language (CDL) Parser** - A Python library for parsing compact string notation describing crystal morphology for gemmological and mineralogical visualization. CDL v2.0 adds support for amorphous materials, nested growth, and crystal aggregates.
 
 Part of the [Gemmology Project](https://gemmology.dev).
 
@@ -31,6 +31,17 @@ print(len(desc.forms))  # 2
 # Parse with twin specification
 desc = parse_cdl("cubic[m3m]:{111} | twin(spinel)")
 print(desc.twin.law)    # 'spinel'
+
+# Parse an amorphous material (v2.0)
+desc = parse_cdl("amorphous[opalescent]:{botryoidal}")
+print(desc.system)      # 'amorphous'
+print(desc.subtype)     # 'opalescent'
+
+# Parse nested growth (v2.0)
+desc = parse_cdl("trigonal[32]:({10-10}@1.0 + {10-11}@0.8) > ({10-10}@0.5 + {10-11}@0.4)")
+
+# Parse an aggregate (v2.0)
+desc = parse_cdl("trigonal[32]:{10-10}@1.0 + {10-11}@0.8 ~ cluster[12]")
 ```
 
 ## CDL Specification
@@ -38,12 +49,22 @@ print(desc.twin.law)    # 'spinel'
 ### Syntax Overview
 
 ```
+# Crystalline materials
 system[point_group]:{form}@scale + {form}@scale | modification | twin(law)
+
+# Amorphous materials (v2.0)
+amorphous[subtype]:{shape1, shape2}[features] | phenomenon[type]
+
+# Nested growth (v2.0)
+system[point_group]:(forms) > (overgrowth_forms)
+
+# Aggregates (v2.0)
+system[point_group]:forms ~ arrangement[count]
 ```
 
 ### Crystal Systems
 
-All 7 crystal systems are supported with their standard point groups:
+All 7 crystal systems are supported with their standard point groups, plus amorphous materials:
 
 | System | Default Point Group | All Point Groups |
 |--------|---------------------|------------------|
@@ -54,6 +75,59 @@ All 7 crystal systems are supported with their standard point groups:
 | orthorhombic | mmm | mmm, 222, mm2 |
 | monoclinic | 2/m | 2/m, m, 2 |
 | triclinic | -1 | -1, 1 |
+| amorphous | none | (n/a) |
+
+### Amorphous Materials (v2.0)
+
+Materials without crystalline structure use the `amorphous` keyword instead of a crystal system:
+
+```python
+# Syntax: amorphous[subtype]:{shape1, shape2}[features]
+"amorphous[opalescent]:{botryoidal}"
+"amorphous[cryptocrystalline]:{massive, nodular}[colour:blue]"
+"amorphous[waxy]:{mammillary}[banding:concentric]"
+```
+
+**Subtypes:** `opalescent`, `glassy`, `waxy`, `resinous`, `cryptocrystalline`
+
+**Shapes:** `massive`, `botryoidal`, `reniform`, `stalactitic`, `mammillary`, `nodular`, `conchoidal`
+
+### Nested Growth (v2.0)
+
+The `>` operator describes overgrowth relationships (base > overgrowth), where an outer crystal grows on an inner one. Right-associative: `a > b > c` = `a > (b > c)`.
+
+```python
+# Scepter quartz — enlarged head on thin stem
+"trigonal[32]:({10-10}@1.0 + {10-11}@0.8) > ({10-10}@0.5 + {10-11}@0.4)"
+
+# Diamond phantom
+"cubic[m3m]:{111}@1.0 > {111}@1.0"
+```
+
+### Aggregates (v2.0)
+
+The `~` operator describes crystal aggregates — multiple copies of a form arranged in a spatial pattern:
+
+```python
+# Syntax: forms ~ arrangement[count]
+"trigonal[32]:{10-10}@1.0 + {10-11}@0.8 ~ cluster[12]"   # Quartz cluster
+"trigonal[32]:{10-10}@1.0 + {10-11}@0.8 ~ druse[50]"     # Amethyst geode
+"cubic[m3m]:{100} ~ cluster[5]"                            # Pyrite cluster
+"trigonal[-3m]:rhombohedron ~ parallel[3]"                  # Calcite parallel growth
+```
+
+**Arrangements:** `parallel`, `random`, `radial`, `epitaxial`, `druse`, `cluster`
+
+**Orientations** (optional): `aligned`, `random`, `planar`, `spherical`
+
+### Group-Level Twins (v2.0)
+
+Twin specifications can be applied to form groups, allowing twinning of composite morphologies:
+
+```python
+# Twin a group of forms
+"cubic[m3m]:({111}@1.0 + {100}@0.3) | twin(spinel)"
+```
 
 ### Miller Indices
 
@@ -133,20 +207,39 @@ Named twin laws for common crystal twins:
 
 # Fluorite cube
 "cubic[m3m]:{100}"
+
+# Opal — amorphous with play of color (v2.0)
+"amorphous[opalescent]:{botryoidal} | phenomenon[play_of_color:intense]"
+
+# Turquoise — cryptocrystalline massive (v2.0)
+"amorphous[cryptocrystalline]:{massive, nodular}[colour:blue]"
+
+# Scepter quartz — nested growth (v2.0)
+"trigonal[32]:({10-10}@1.0 + {10-11}@0.8) > ({10-10}@0.5 + {10-11}@0.4)"
+
+# Quartz cluster aggregate (v2.0)
+"trigonal[32]:{10-10}@1.0 + {10-11}@0.8 ~ cluster[12]"
+
+# Amethyst geode druse (v2.0)
+"trigonal[32]:{10-10}@1.0 + {10-11}@0.8 ~ druse[50]"
 ```
 
 ## API Reference
 
 ### Core Functions
 
-#### `parse_cdl(text: str) -> CrystalDescription`
+#### `parse_cdl(text: str) -> CrystalDescription | AmorphousDescription`
 
-Parse a CDL string into a structured description.
+Parse a CDL string into a structured description. Returns `CrystalDescription` for crystalline materials or `AmorphousDescription` for amorphous materials.
 
 ```python
 from cdl_parser import parse_cdl
 
+# Crystalline — returns CrystalDescription
 desc = parse_cdl("cubic[m3m]:{111}@1.0 + {100}@1.3")
+
+# Amorphous — returns AmorphousDescription (v2.0)
+desc = parse_cdl("amorphous[opalescent]:{botryoidal}")
 ```
 
 #### `validate_cdl(text: str) -> tuple[bool, str | None]`
@@ -165,16 +258,66 @@ if not is_valid:
 
 #### `CrystalDescription`
 
-Main output of CDL parsing.
+Main output of CDL parsing for crystalline materials.
 
 ```python
 @dataclass
 class CrystalDescription:
     system: str                          # Crystal system
     point_group: str                     # Point group symbol
-    forms: List[CrystalForm]             # Crystal forms
-    modifications: List[Modification]    # Morphological mods
-    twin: Optional[TwinSpec]             # Twin specification
+    forms: list[FormNode]                # Form tree (CrystalForm | FormGroup | NestedGrowth | AggregateSpec)
+    modifications: list[Modification]    # Morphological mods
+    twin: TwinSpec | None                # Twin specification
+    phenomenon: PhenomenonSpec | None    # Optical phenomenon
+    doc_comments: list[str] | None       # Doc comments (#!)
+    definitions: list[Definition] | None # Named definitions (@name = ...)
+
+    def flat_forms(self) -> list[CrystalForm]:
+        """Flatten form tree into a list of CrystalForm leaves."""
+```
+
+#### `AmorphousDescription` (v2.0)
+
+Output of CDL parsing for amorphous (non-crystalline) materials.
+
+```python
+@dataclass
+class AmorphousDescription:
+    subtype: str                         # 'opalescent', 'glassy', 'waxy', etc.
+    shapes: list[str]                    # 'massive', 'botryoidal', etc.
+    features: list[Feature] | None       # Feature annotations
+    phenomenon: PhenomenonSpec | None    # Optical phenomenon
+    doc_comments: list[str] | None       # Doc comments (#!)
+    definitions: list[Definition] | None # Named definitions
+
+    @property
+    def system(self) -> str:             # Always returns 'amorphous'
+```
+
+#### `NestedGrowth` (v2.0)
+
+Represents a base crystal with an overgrowth (the `>` operator).
+
+```python
+@dataclass
+class NestedGrowth:
+    base: FormNode                       # Base form node
+    overgrowth: FormNode                 # Overgrowth form node
+```
+
+#### `AggregateSpec` (v2.0)
+
+Represents a crystal aggregate (the `~` operator).
+
+```python
+@dataclass
+class AggregateSpec:
+    form: FormNode                       # Form to aggregate
+    arrangement: str                     # 'parallel', 'random', 'radial', etc.
+    count: int                           # Number of individuals
+    spacing: str | None                  # Optional spacing value
+    orientation: str | None              # Optional orientation mode
+    orientation_param: float | None      # Optional orientation parameter
 ```
 
 #### `MillerIndex`
@@ -209,11 +352,15 @@ class CrystalForm:
 
 ```python
 from cdl_parser import (
-    CRYSTAL_SYSTEMS,      # Set of system names
-    POINT_GROUPS,         # Dict[system, Set[groups]]
-    DEFAULT_POINT_GROUPS, # Dict[system, default_group]
-    NAMED_FORMS,          # Dict[name, (h, k, l)]
-    TWIN_LAWS,            # Set of twin law names
+    CRYSTAL_SYSTEMS,          # Set of system names
+    POINT_GROUPS,             # Dict[system, Set[groups]]
+    DEFAULT_POINT_GROUPS,     # Dict[system, default_group]
+    NAMED_FORMS,              # Dict[name, (h, k, l)]
+    TWIN_LAWS,                # Set of twin law names
+    AMORPHOUS_SUBTYPES,       # Set: opalescent, glassy, waxy, resinous, cryptocrystalline
+    AMORPHOUS_SHAPES,         # Set: massive, botryoidal, reniform, stalactitic, ...
+    AGGREGATE_ARRANGEMENTS,   # Set: parallel, random, radial, epitaxial, druse, cluster
+    AGGREGATE_ORIENTATIONS,   # Set: aligned, random, planar, spherical
 )
 ```
 

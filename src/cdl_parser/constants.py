@@ -178,3 +178,45 @@ PHENOMENON_TYPES: set[str] = {
     "aventurescence",
     "iridescence",
 }
+
+# =============================================================================
+# Amorphous Constants (CDL v2.0)
+# =============================================================================
+
+AMORPHOUS_SUBTYPES: set[str] = {
+    "opalescent",
+    "glassy",
+    "waxy",
+    "resinous",
+    "cryptocrystalline",
+}
+
+AMORPHOUS_SHAPES: set[str] = {
+    "massive",
+    "botryoidal",
+    "reniform",
+    "stalactitic",
+    "mammillary",
+    "nodular",
+    "conchoidal",
+}
+
+# =============================================================================
+# Aggregate Constants (CDL v2.0)
+# =============================================================================
+
+AGGREGATE_ARRANGEMENTS: set[str] = {
+    "parallel",
+    "random",
+    "radial",
+    "epitaxial",
+    "druse",
+    "cluster",
+}
+
+AGGREGATE_ORIENTATIONS: set[str] = {
+    "aligned",
+    "random",
+    "planar",
+    "spherical",
+}

@@ -22,14 +22,18 @@ CDL Syntax:
         cubic[m3m]:{111} | twin(spinel)     # Spinel-law twin
 """
 
-__version__ = "1.3.0"
+__version__ = "2.0.0"
 __author__ = "Fabian Schuh"
 __email__ = "fabian@gemmology.dev"
 
 # Core parsing functions
 # Constants
 from .constants import (
+    AGGREGATE_ARRANGEMENTS,
+    AGGREGATE_ORIENTATIONS,
     ALL_POINT_GROUPS,
+    AMORPHOUS_SHAPES,
+    AMORPHOUS_SUBTYPES,
     CRYSTAL_SYSTEMS,
     DEFAULT_POINT_GROUPS,
     FEATURE_NAMES,
@@ -46,6 +50,8 @@ from .exceptions import CDLError, ParseError, ValidationError
 
 # Data classes
 from .models import (
+    AggregateSpec,
+    AmorphousDescription,
     CrystalDescription,
     CrystalForm,
     Definition,
@@ -54,6 +60,7 @@ from .models import (
     FormNode,
     MillerIndex,
     Modification,
+    NestedGrowth,
     PhenomenonSpec,
     TwinSpec,
 )
@@ -68,6 +75,8 @@ __all__ = [
     "parse_cdl",
     "validate_cdl",
     # Data classes
+    "AggregateSpec",
+    "AmorphousDescription",
     "CrystalDescription",
     "CrystalForm",
     "Definition",
@@ -76,6 +85,7 @@ __all__ = [
     "FormNode",
     "MillerIndex",
     "Modification",
+    "NestedGrowth",
     "PhenomenonSpec",
     "TwinSpec",
     # Exceptions
@@ -83,7 +93,11 @@ __all__ = [
     "ParseError",
     "ValidationError",
     # Constants
+    "AGGREGATE_ARRANGEMENTS",
+    "AGGREGATE_ORIENTATIONS",
     "ALL_POINT_GROUPS",
+    "AMORPHOUS_SHAPES",
+    "AMORPHOUS_SUBTYPES",
     "CRYSTAL_SYSTEMS",
     "DEFAULT_POINT_GROUPS",
     "FEATURE_NAMES",

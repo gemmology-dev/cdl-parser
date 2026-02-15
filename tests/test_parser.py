@@ -1094,11 +1094,11 @@ class TestFlatForms:
 class TestVersion:
     """Test version is updated."""
 
-    def test_version_1_3(self):
-        """Version is 1.3.0."""
+    def test_version_2_0(self):
+        """Version is 2.0.0."""
         import cdl_parser
 
-        assert cdl_parser.__version__ == "1.3.0"
+        assert cdl_parser.__version__ == "2.0.0"
 
 
 # =============================================================================
@@ -1139,3 +1139,519 @@ class TestV1Regression:
         d = desc.to_dict()
         assert "flat_forms" in d
         assert len(d["flat_forms"]) == 2
+
+
+# =============================================================================
+# Amorphous Tests (CDL v2.0)
+# =============================================================================
+
+
+class TestAmorphous:
+    """Test CDL v2.0 amorphous material parsing."""
+
+    def test_basic_amorphous(self):
+        """Basic amorphous description."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl("amorphous[opalescent]:{massive}")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.system == "amorphous"
+        assert desc.subtype == "opalescent"
+        assert desc.shapes == ["massive"]
+
+    def test_amorphous_no_subtype(self):
+        """Amorphous without explicit subtype defaults to none."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl("amorphous:{massive}")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.subtype == "none"
+
+    def test_amorphous_none_subtype(self):
+        """Amorphous with explicit 'none' subtype."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl("amorphous[none]:{massive}")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.subtype == "none"
+
+    @pytest.mark.parametrize(
+        "subtype", ["opalescent", "glassy", "waxy", "resinous", "cryptocrystalline"]
+    )
+    def test_all_subtypes(self, subtype):
+        """All valid subtypes parse correctly."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl(f"amorphous[{subtype}]:{{massive}}")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.subtype == subtype
+
+    def test_invalid_subtype(self):
+        """Invalid subtype raises ParseError."""
+        with pytest.raises(ParseError):
+            parse_cdl("amorphous[invalid]:{massive}")
+
+    def test_multiple_shapes(self):
+        """Multiple shapes."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl("amorphous[opalescent]:{massive, botryoidal, reniform}")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.shapes == ["massive", "botryoidal", "reniform"]
+
+    @pytest.mark.parametrize(
+        "shape",
+        ["massive", "botryoidal", "reniform", "stalactitic", "mammillary", "nodular", "conchoidal"],
+    )
+    def test_all_shapes(self, shape):
+        """All valid shapes parse correctly."""
+        desc = parse_cdl(f"amorphous[glassy]:{{{shape}}}")
+        assert shape in desc.shapes
+
+    def test_invalid_shape(self):
+        """Invalid shape raises ParseError."""
+        with pytest.raises(ParseError):
+            parse_cdl("amorphous[glassy]:{invalid_shape}")
+
+    def test_amorphous_with_features(self):
+        """Amorphous with feature annotations."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl("amorphous[opalescent]:{massive}[colour:blue]")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.features is not None
+        assert desc.features[0].name == "colour"
+        assert desc.features[0].values == ["blue"]
+
+    def test_amorphous_with_phenomenon(self):
+        """Amorphous with phenomenon."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl("amorphous[opalescent]:{massive} | phenomenon[play_of_color:strong]")
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.phenomenon is not None
+        assert desc.phenomenon.type == "play_of_color"
+
+    def test_amorphous_with_features_and_phenomenon(self):
+        """Amorphous with both features and phenomenon."""
+        from cdl_parser import AmorphousDescription
+
+        desc = parse_cdl(
+            "amorphous[opalescent]:{massive, botryoidal}[colour:blue] "
+            "| phenomenon[play_of_color:strong]"
+        )
+        assert isinstance(desc, AmorphousDescription)
+        assert desc.features is not None
+        assert desc.phenomenon is not None
+
+    def test_amorphous_flat_forms_empty(self):
+        """Amorphous flat_forms() returns empty list."""
+        desc = parse_cdl("amorphous[glassy]:{massive}")
+        assert desc.flat_forms() == []
+
+    def test_amorphous_str_roundtrip(self):
+        """Amorphous string representation can be re-parsed."""
+        from cdl_parser import AmorphousDescription
+
+        original = "amorphous[opalescent]:{massive, botryoidal}"
+        desc = parse_cdl(original)
+        reconstructed = str(desc)
+        desc2 = parse_cdl(reconstructed)
+        assert isinstance(desc2, AmorphousDescription)
+        assert desc2.subtype == desc.subtype
+        assert desc2.shapes == desc.shapes
+
+    def test_amorphous_to_dict(self):
+        """Amorphous to_dict() output."""
+        desc = parse_cdl("amorphous[opalescent]:{massive}")
+        d = desc.to_dict()
+        assert d["system"] == "amorphous"
+        assert d["subtype"] == "opalescent"
+        assert d["shapes"] == ["massive"]
+
+
+# =============================================================================
+# Nested Growth Tests (CDL v2.0)
+# =============================================================================
+
+
+class TestNestedGrowth:
+    """Test CDL v2.0 nested growth parsing."""
+
+    def test_simple_nested_growth(self):
+        """Simple base > overgrowth."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100}")
+        assert len(desc.forms) == 1
+        node = desc.forms[0]
+        assert isinstance(node, NestedGrowth)
+        assert node.base.miller.as_tuple() == (1, 1, 1)
+        assert node.overgrowth.miller.as_tuple() == (1, 0, 0)
+
+    def test_right_associative(self):
+        """a > b > c = a > (b > c) — right-associative."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100} > {110}")
+        node = desc.forms[0]
+        assert isinstance(node, NestedGrowth)
+        # base = {111}
+        assert node.base.miller.as_tuple() == (1, 1, 1)
+        # overgrowth = {100} > {110}
+        inner = node.overgrowth
+        assert isinstance(inner, NestedGrowth)
+        assert inner.base.miller.as_tuple() == (1, 0, 0)
+        assert inner.overgrowth.miller.as_tuple() == (1, 1, 0)
+
+    def test_nested_growth_with_addition(self):
+        """Nested growth combined with + (lower precedence)."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100} + {110}@0.8")
+        assert len(desc.forms) == 2
+        assert isinstance(desc.forms[0], NestedGrowth)
+        assert isinstance(desc.forms[1], CrystalForm)
+
+    def test_nested_growth_with_features(self):
+        """Nested growth with features on individual forms."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111}[phantom:3] > {100}")
+        node = desc.forms[0]
+        assert isinstance(node, NestedGrowth)
+        assert node.base.features is not None
+        assert node.base.features[0].name == "phantom"
+
+    def test_nested_growth_in_group(self):
+        """Nested growth inside a group."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:({111} > {100})[phantom:3]")
+        group = desc.forms[0]
+        assert isinstance(group, FormGroup)
+        assert len(group.forms) == 1
+        assert isinstance(group.forms[0], NestedGrowth)
+
+    def test_nested_growth_flat_forms(self):
+        """flat_forms() flattens both sides of nested growth."""
+        desc = parse_cdl("cubic[m3m]:{111} > {100}")
+        flat = desc.flat_forms()
+        assert len(flat) == 2
+        assert flat[0].miller.as_tuple() == (1, 1, 1)
+        assert flat[1].miller.as_tuple() == (1, 0, 0)
+
+    def test_three_generations(self):
+        """Three-generation nested growth."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100} > {110}")
+        flat = desc.flat_forms()
+        assert len(flat) == 3
+
+    def test_nested_growth_with_named_forms(self):
+        """Nested growth with named forms."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:octahedron > cube")
+        node = desc.forms[0]
+        assert isinstance(node, NestedGrowth)
+        assert node.base.name == "octahedron"
+        assert node.overgrowth.name == "cube"
+
+    def test_nested_growth_with_scales(self):
+        """Nested growth with scale values."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111}@1.0 > {100}@0.5")
+        node = desc.forms[0]
+        assert isinstance(node, NestedGrowth)
+        assert node.base.scale == 1.0
+        assert node.overgrowth.scale == 0.5
+
+    def test_nested_growth_str(self):
+        """NestedGrowth __str__ method."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100}")
+        node = desc.forms[0]
+        assert isinstance(node, NestedGrowth)
+        s = str(node)
+        assert ">" in s
+
+    def test_nested_growth_to_dict(self):
+        """NestedGrowth in to_dict() output."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100}")
+        d = desc.to_dict()
+        assert d["forms"][0]["type"] == "nested_growth"
+        assert d["forms"][0]["base"]["type"] == "form"
+        assert d["forms"][0]["overgrowth"]["type"] == "form"
+
+    def test_nested_growth_addition_right(self):
+        """Addition on right side: {111} + {100} > {110} means {111} + ({100} > {110})."""
+        from cdl_parser import NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} + {100} > {110}")
+        assert len(desc.forms) == 2
+        assert isinstance(desc.forms[0], CrystalForm)
+        assert isinstance(desc.forms[1], NestedGrowth)
+
+
+# =============================================================================
+# Aggregate Tests (CDL v2.0)
+# =============================================================================
+
+
+class TestAggregate:
+    """Test CDL v2.0 aggregate parsing."""
+
+    def test_basic_aggregate(self):
+        """Basic aggregate spec."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl("cubic[m3m]:{111} ~ parallel[5]")
+        assert len(desc.forms) == 1
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert node.arrangement == "parallel"
+        assert node.count == 5
+
+    @pytest.mark.parametrize(
+        "arrangement", ["parallel", "random", "radial", "epitaxial", "druse", "cluster"]
+    )
+    def test_all_arrangements(self, arrangement):
+        """All valid arrangements parse correctly."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl(f"cubic[m3m]:{{111}} ~ {arrangement}[3]")
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert node.arrangement == arrangement
+
+    def test_invalid_arrangement(self):
+        """Invalid arrangement raises ParseError."""
+        with pytest.raises(ParseError):
+            parse_cdl("cubic[m3m]:{111} ~ invalid[3]")
+
+    def test_aggregate_with_spacing(self):
+        """Aggregate with spacing."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl("cubic[m3m]:{111} ~ parallel[5] @0.5mm")
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert node.spacing == "0.5mm"
+
+    def test_aggregate_with_orientation(self):
+        """Aggregate with orientation."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl("cubic[m3m]:{111} ~ radial[8] [spherical]")
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert node.orientation == "spherical"
+
+    def test_aggregate_with_orientation_param(self):
+        """Aggregate with orientation and parameter."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl("cubic[m3m]:{111} ~ radial[8] [aligned:0.9]")
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert node.orientation == "aligned"
+        assert node.orientation_param == 0.9
+
+    def test_invalid_orientation(self):
+        """Invalid orientation raises ParseError."""
+        with pytest.raises(ParseError):
+            parse_cdl("cubic[m3m]:{111} ~ parallel[3] [invalid]")
+
+    def test_aggregate_precedence_vs_plus(self):
+        """Aggregate has higher precedence than +."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl("cubic[m3m]:{111} ~ parallel[3] + {100}")
+        assert len(desc.forms) == 2
+        assert isinstance(desc.forms[0], AggregateSpec)
+        assert isinstance(desc.forms[1], CrystalForm)
+
+    def test_aggregate_precedence_vs_growth(self):
+        """Aggregate has lower precedence than >."""
+        from cdl_parser import AggregateSpec, NestedGrowth
+
+        desc = parse_cdl("cubic[m3m]:{111} > {100} ~ parallel[3]")
+        assert len(desc.forms) == 1
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert isinstance(node.form, NestedGrowth)
+
+    def test_aggregate_on_group(self):
+        """Aggregate on a grouped form."""
+        from cdl_parser import AggregateSpec
+
+        desc = parse_cdl("cubic[m3m]:({111} + {100}) ~ cluster[4]")
+        assert len(desc.forms) == 1
+        node = desc.forms[0]
+        assert isinstance(node, AggregateSpec)
+        assert isinstance(node.form, FormGroup)
+
+    def test_aggregate_flat_forms(self):
+        """flat_forms() extracts inner form from aggregate."""
+        desc = parse_cdl("cubic[m3m]:{111} ~ parallel[5]")
+        flat = desc.flat_forms()
+        assert len(flat) == 1
+        assert flat[0].miller.as_tuple() == (1, 1, 1)
+
+    def test_aggregate_to_dict(self):
+        """AggregateSpec in to_dict() output."""
+        desc = parse_cdl("cubic[m3m]:{111} ~ parallel[5]")
+        d = desc.to_dict()
+        assert d["forms"][0]["type"] == "aggregate"
+        assert d["forms"][0]["arrangement"] == "parallel"
+        assert d["forms"][0]["count"] == 5
+
+
+# =============================================================================
+# Group-Level Twin Tests (CDL v2.0)
+# =============================================================================
+
+
+class TestGroupLevelTwin:
+    """Test CDL v2.0 group-level twin parsing."""
+
+    def test_basic_group_twin(self):
+        """Group with local twin."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100}) | twin(spinel)")
+        group = desc.forms[0]
+        assert isinstance(group, FormGroup)
+        assert group.twin is not None
+        assert group.twin.law == "spinel"
+
+    def test_group_twin_with_global_twin(self):
+        """Group twin + global twin coexist."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100}) | twin(spinel) + {110} | twin(japan)")
+        # Group with local twin
+        group = desc.forms[0]
+        assert isinstance(group, FormGroup)
+        assert group.twin is not None
+        assert group.twin.law == "spinel"
+        # Global twin
+        assert desc.twin is not None
+        assert desc.twin.law == "japan"
+
+    def test_group_twin_with_features(self):
+        """Group twin with features."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100})[phantom:3] | twin(spinel)")
+        group = desc.forms[0]
+        assert isinstance(group, FormGroup)
+        assert group.features is not None
+        assert group.twin is not None
+        assert group.twin.law == "spinel"
+
+    def test_group_twin_flat_forms(self):
+        """flat_forms() works with group-level twin."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100}) | twin(spinel)")
+        flat = desc.flat_forms()
+        assert len(flat) == 2
+
+    def test_group_twin_to_dict(self):
+        """Group-level twin in to_dict() output."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100}) | twin(spinel)")
+        d = desc.to_dict()
+        assert d["forms"][0]["type"] == "group"
+        assert "twin" in d["forms"][0]
+        assert d["forms"][0]["twin"]["law"] == "spinel"
+
+    def test_group_twin_str(self):
+        """Group twin in __str__ output."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100}) | twin(spinel)")
+        group = desc.forms[0]
+        s = str(group)
+        assert "twin(spinel)" in s
+
+
+# =============================================================================
+# Definition Edge Case Tests (CDL v2.0)
+# =============================================================================
+
+
+class TestDefinitionEdgeCases:
+    """Test CDL v2.0 definition edge cases."""
+
+    def test_definition_with_scale(self):
+        """Definition with scale value."""
+        desc = parse_cdl("@oct = {111}@1.0\ncubic[m3m]:$oct + {100}@1.3")
+        flat = desc.flat_forms()
+        assert len(flat) == 2
+        assert flat[0].scale == 1.0
+
+    def test_override_pattern(self):
+        """Override pattern: $base with features appended."""
+        cdl = "@base = {111}@1.0\ncubic[m3m]:$base[phantom:3] + {100}@1.3"
+        desc = parse_cdl(cdl)
+        flat = desc.flat_forms()
+        assert flat[0].features is not None
+        assert flat[0].features[0].name == "phantom"
+
+    def test_definition_with_group(self):
+        """Definition containing a group."""
+        cdl = "@core = ({111} + {100})\ncubic[m3m]:$core[phantom:3]"
+        desc = parse_cdl(cdl)
+        flat = desc.flat_forms()
+        assert len(flat) == 2
+
+    def test_definition_referencing_another(self):
+        """Definition referencing another definition."""
+        cdl = "@a = {111}@1.0\n@b = $a + {100}@1.3\ncubic[m3m]:$b"
+        desc = parse_cdl(cdl)
+        flat = desc.flat_forms()
+        assert len(flat) == 2
+
+    def test_definition_with_nested_growth(self):
+        """Definition body with nested growth resolves correctly."""
+        cdl = "@core = {111} > {100}\ncubic[m3m]:$core + {110}"
+        desc = parse_cdl(cdl)
+        flat = desc.flat_forms()
+        assert len(flat) == 3
+
+
+# =============================================================================
+# V2 Regression Tests (CDL v2.0)
+# =============================================================================
+
+
+class TestV2Regression:
+    """Ensure all v1.x CDL still works with v2.0 changes."""
+
+    @pytest.mark.parametrize("name,cdl", CDL_TEST_CASES)
+    def test_all_v1_cases_v2(self, name, cdl):
+        """All CDL_TEST_CASES parse successfully with v2.0."""
+        desc = parse_cdl(cdl)
+        assert isinstance(desc, CrystalDescription)
+        for f in desc.forms:
+            assert isinstance(f, CrystalForm)
+        flat = desc.flat_forms()
+        assert len(flat) == len(desc.forms)
+
+    def test_v2_version(self):
+        """Version is 2.0.0."""
+        import cdl_parser
+
+        assert cdl_parser.__version__ == "2.0.0"
+
+    def test_features_still_work(self):
+        """Features from v1.2 still work."""
+        desc = parse_cdl("cubic[m3m]:{111}[phantom:3]")
+        assert desc.forms[0].features is not None
+
+    def test_groups_still_work(self):
+        """Groups from v1.3 still work."""
+        desc = parse_cdl("cubic[m3m]:({111} + {100})[phantom:3]")
+        assert isinstance(desc.forms[0], FormGroup)
+
+    def test_definitions_still_work(self):
+        """Definitions from v1.3 still work."""
+        desc = parse_cdl("@oct = {111}@1.0\ncubic[m3m]:$oct")
+        assert desc.definitions is not None
