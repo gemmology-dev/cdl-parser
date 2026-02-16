@@ -1343,8 +1343,6 @@ class TestNestedGrowth:
 
     def test_three_generations(self):
         """Three-generation nested growth."""
-        from cdl_parser import NestedGrowth
-
         desc = parse_cdl("cubic[m3m]:{111} > {100} > {110}")
         flat = desc.flat_forms()
         assert len(flat) == 3
@@ -1381,8 +1379,6 @@ class TestNestedGrowth:
 
     def test_nested_growth_to_dict(self):
         """NestedGrowth in to_dict() output."""
-        from cdl_parser import NestedGrowth
-
         desc = parse_cdl("cubic[m3m]:{111} > {100}")
         d = desc.to_dict()
         assert d["forms"][0]["type"] == "nested_growth"
