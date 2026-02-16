@@ -502,9 +502,7 @@ class Parser:
             shape_token = self._expect(TokenType.IDENTIFIER)
             shape = shape_token.value.lower()
             if shape not in AMORPHOUS_SHAPES:
-                raise ParseError(
-                    f"Unknown amorphous shape: {shape}", position=shape_token.position
-                )
+                raise ParseError(f"Unknown amorphous shape: {shape}", position=shape_token.position)
             shapes.append(shape)
             if self._current().type == TokenType.COMMA:
                 self._advance()  # consume ,
